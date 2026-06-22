@@ -1,0 +1,185 @@
+import { createHmac } from "node:crypto";
+import { createReadStream, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { extname, join, normalize, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import http from "node:http";
+
+const __dirname = fileURLToPath(new URL(".", import.meta.url));
+const rootDir = resolve(__dirname, "..");
+const publicDir = join(rootDir, "public");
+const dataDir = join(rootDir, "data");
+const dataFile = join(dataDir, "eighty.json");
+const port = Number(process.env.PORT || 3000);
+const botToken = process.env.TELEGRAM_BOT_TOKEN || "";
+
+const mimeTypes = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon"
+};
+
+function ensureDataFile() {
+  if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+  if (!existsSync(dataFile)) {
+    writeFileSync(dataFile, JSON.stringify({ users: {} }, null, 2), "utf8");
+  }
+}
+
+function readDb() {
+  ensureDataFile();
+  return JSON.parse(readFileSync(dataFile, "utf8"));
+}
+
+function writeDb(db) {
+  ensureDataFile();
+  writeFileSync(dataFile, JSON.stringify({ users: db.users || {} }, null, 2), "utf8");
+}
+
+function json(res, status, payload) {
+  const body = JSON.stringify(payload);
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": Buffer.byteLength(body)
+  });
+  res.end(body);
+}
+
+function parseInitData(initData) {
+  if (!initData) return null;
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  const userRaw = params.get("user");
+  if (botToken && hash) {
+    params.delete("hash");
+    const dataCheckString = [...params.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n");
+    const secret = createHmac("sha256", "WebAppData").update(botToken).digest();
+    const expected = createHmac("sha256", secret).update(dataCheckString).digest("hex");
+    if (expected !== hash) return null;
+  }
+  if (!userRaw) return null;
+  try {
+    return JSON.parse(userRaw);
+  } catch {
+    return null;
+  }
+}
+
+function getRequestUser(req, url) {
+  const initData = req.headers["x-telegram-init-data"];
+  const telegramUser = parseInitData(Array.isArray(initData) ? initData[0] : initData);
+  if (telegramUser?.id) {
+    return {
+      id: String(telegramUser.id),
+      telegramId: String(telegramUser.id),
+      name: [telegramUser.first_name, telegramUser.last_name].filter(Boolean).join(" ") || telegramUser.username || "Пользователь"
+    };
+  }
+
+  const fallbackId = url.searchParams.get("telegramId") || "demo-user";
+  return {
+    id: fallbackId,
+    telegramId: fallbackId === "demo-user" ? "" : fallbackId,
+    name: url.searchParams.get("name") || "Пользователь"
+  };
+}
+
+function createDefaultState(user) {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    version: 2,
+    createdAt: new Date().toISOString(),
+    profile: {
+      name: user.name,
+      sex: "female",
+      age: 28,
+      height: 170,
+      weight: 75,
+      targetWeight: 65,
+      activity: "low",
+      goalMode: "loss",
+      deficitPercent: 15,
+      surplusPercent: 10
+    },
+    settings: {
+      waterEnabled: true,
+      waterManual: false,
+      waterGoal: 2200
+    },
+    products: [],
+    diary: { [today]: [] },
+    water: { [today]: 0 },
+    weightLogs: [{ date: today, weight: 75 }]
+  };
+}
+
+async function readBody(req) {
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  if (!chunks.length) return {};
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+function serveStatic(req, res, url) {
+  const requested = url.pathname === "/" ? "/index.html" : decodeURIComponent(url.pathname);
+  const filePath = normalize(join(publicDir, requested));
+  if (!filePath.startsWith(publicDir)) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
+  }
+  if (!existsSync(filePath)) {
+    res.writeHead(404);
+    res.end("Not found");
+    return;
+  }
+  res.writeHead(200, { "Content-Type": mimeTypes[extname(filePath)] || "application/octet-stream" });
+  createReadStream(filePath).pipe(res);
+}
+
+const server = http.createServer(async (req, res) => {
+  try {
+    const url = new URL(req.url || "/", `http://${req.headers.host}`);
+
+    if (url.pathname === "/api/bootstrap" && req.method === "GET") {
+      const requestUser = getRequestUser(req, url);
+      const db = readDb();
+      db.users ||= {};
+      if (!db.users[requestUser.id]) {
+        db.users[requestUser.id] = {
+          telegramId: requestUser.telegramId,
+          state: createDefaultState(requestUser)
+        };
+        writeDb(db);
+      }
+      return json(res, 200, { user: requestUser, state: db.users[requestUser.id].state });
+    }
+
+    if (url.pathname === "/api/sync" && req.method === "POST") {
+      const requestUser = getRequestUser(req, url);
+      const body = await readBody(req);
+      const db = readDb();
+      db.users ||= {};
+      db.users[requestUser.id] = {
+        telegramId: requestUser.telegramId || db.users[requestUser.id]?.telegramId || "",
+        state: body.state
+      };
+      writeDb(db);
+      return json(res, 200, { ok: true, savedAt: new Date().toISOString() });
+    }
+
+    return serveStatic(req, res, url);
+  } catch (error) {
+    return json(res, 500, { error: error.message });
+  }
+});
+
+server.listen(port, () => {
+  console.log(`Eighty is running: http://localhost:${port}`);
+});

@@ -1,0 +1,93 @@
+{
+  "users": {
+    "demo-user": {
+      "telegramId": "",
+      "state": {
+        "version": 2,
+        "createdAt": "2026-06-22T14:48:10.863Z",
+        "profile": {
+          "name": "Пользователь",
+          "sex": "female",
+          "age": 28,
+          "height": 170,
+          "weight": 75,
+          "targetWeight": 65,
+          "activity": "low",
+          "goalMode": "loss",
+          "deficitPercent": 15,
+          "surplusPercent": 10
+        },
+        "settings": {
+          "waterEnabled": true,
+          "waterManual": false,
+          "waterGoal": 2200
+        },
+        "products": [
+          {
+            "id": "s3zretnamqpeywog",
+            "name": "Котлета",
+            "type": "piece",
+            "calories": 270,
+            "protein": 27,
+            "fat": 17.3,
+            "carbs": 1.1,
+            "cookedDryWeight": 0,
+            "cookedReadyWeight": 100
+          },
+          {
+            "id": "61pomyfqmqpewvzi",
+            "name": "Спагетти",
+            "type": "cooked",
+            "calories": 320,
+            "protein": 12.3,
+            "fat": 1.5,
+            "carbs": 64,
+            "cookedDryWeight": 100,
+            "cookedReadyWeight": 244
+          }
+        ],
+        "diary": {
+          "2026-06-22": [
+            {
+              "id": "dbw6mfptmqpezdh3",
+              "meal": "breakfast",
+              "productId": "61pomyfqmqpewvzi",
+              "label": "Спагетти",
+              "amount": 70,
+              "unit": "г",
+              "nutrients": {
+                "calories": 91.80327868852459,
+                "protein": 3.528688524590164,
+                "fat": 0.430327868852459,
+                "carbs": 18.360655737704917
+              }
+            },
+            {
+              "id": "yx2movakmqpezsov",
+              "meal": "breakfast",
+              "productId": "s3zretnamqpeywog",
+              "label": "Котлета",
+              "amount": 1,
+              "unit": "шт.",
+              "nutrients": {
+                "calories": 270,
+                "protein": 27,
+                "fat": 17.3,
+                "carbs": 1.1
+              }
+            }
+          ]
+        },
+        "water": {
+          "2026-06-22": 0
+        },
+        "weightLogs": [
+          {
+            "date": "2026-06-22",
+            "weight": 75
+          }
+        ]
+      }
+    }
+  }
+}
