@@ -63,6 +63,99 @@ function json(res, status, payload) {
   res.end(body);
 }
 
+function parseInitData(initData) {
+  if (!initData) return null;
+
+  const params = new URLSearchParams(initData);
+  const hash = params.get("hash");
+  const userRaw = params.get("user");
+
+  if (botToken && hash) {
+    params.delete("hash");
+
+    const dataCheckString = [...params.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${value}`)
+      .join("\n");
+
+    const secret = createHmac("sha256", "WebAppData")
+      .update(botToken)
+      .digest();
+
+    const expected = createHmac("sha256", secret)
+      .update(dataCheckString)
+      .digest("hex");
+
+    if (expected !== hash) return null;
+  }
+
+  if (!userRaw) return null;
+
+  try {
+    return JSON.parse(userRaw);
+  } catch {
+    return null;
+  }
+}
+
+function getRequestUser(req, url) {
+  const initData = req.headers["x-telegram-init-data"];
+  const telegramUser = parseInitData(
+    Array.isArray(initData) ? initData[0] : initData
+  );
+
+  if (telegramUser?.id) {
+    return {
+      id: String(telegramUser.id),
+      telegramId: String(telegramUser.id),
+      name:
+        [telegramUser.first_name, telegramUser.last_name]
+          .filter(Boolean)
+          .join(" ") ||
+        telegramUser.username ||
+        "Пользователь"
+    };
+  }
+
+  const fallbackId = url.searchParams.get("telegramId") || "demo-user";
+
+  return {
+    id: fallbackId,
+    telegramId: fallbackId === "demo-user" ? "" : fallbackId,
+    name: url.searchParams.get("name") || "Пользователь"
+  };
+}
+
+function createDefaultState(user) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  return {
+    version: 2,
+    createdAt: new Date().toISOString(),
+    profile: {
+      name: user.name,
+      sex: "female",
+      age: 28,
+      height: 170,
+      weight: 75,
+      targetWeight: 65,
+      activity: "low",
+      goalMode: "loss",
+      deficitPercent: 15,
+      surplusPercent: 10
+    },
+    settings: {
+      waterEnabled: true,
+      waterManual: false,
+      waterGoal: 2200
+    },
+    products: [],
+    diary: { [today]: [] },
+    water: { [today]: 0 },
+    weightLogs: [{ date: today, weight: 75 }]
+  };
+}
+
 async function readBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
