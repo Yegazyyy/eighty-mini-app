@@ -52,6 +52,17 @@ async function saveUser(id, telegramId, state) {
   if (error) throw error;
 }
 
+function json(res, status, payload) {
+  const body = JSON.stringify(payload);
+
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": Buffer.byteLength(body)
+  });
+
+  res.end(body);
+}
+
 async function readBody(req) {
   const chunks = [];
   for await (const chunk of req) chunks.push(chunk);
