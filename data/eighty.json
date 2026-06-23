@@ -10,7 +10,7 @@
           "sex": "female",
           "age": 28,
           "height": 170,
-          "weight": 75,
+          "weight": 99.1,
           "targetWeight": "",
           "activity": "low",
           "goalMode": "loss",
@@ -26,8 +26,8 @@
         },
         "settings": {
           "waterEnabled": true,
-          "waterManual": false,
-          "waterGoal": 1500
+          "waterManual": true,
+          "waterGoal": 3000
         },
         "products": [
           {
@@ -95,11 +95,27 @@
         "weightLogs": [
           {
             "date": "2026-06-22",
-            "weight": 75
+            "weight": 75,
+            "id": "cgtqj42lmqr5r6uz",
+            "createdAt": "2026-06-22T00:00:00"
           },
           {
             "date": "2026-06-24",
-            "weight": 75
+            "weight": 75,
+            "id": "9asz7rk1mqr5r6uz",
+            "createdAt": "2026-06-24T00:00:00"
+          },
+          {
+            "id": "68cpcez2mqr64m36",
+            "date": "2026-06-24",
+            "weight": 98.4,
+            "createdAt": "2026-06-23T21:40:30.000Z"
+          },
+          {
+            "id": "p6vyrn20mqr67vxu",
+            "date": "2026-06-24",
+            "weight": 99.1,
+            "createdAt": "2026-06-23T21:43:03.000Z"
           }
         ],
         "telegram": {
@@ -132,7 +148,7 @@
           }
         }
       },
-      "updatedAt": "2026-06-23T21:06:23.583Z"
+      "updatedAt": "2026-06-23T23:20:00.625Z"
     }
   }
 }

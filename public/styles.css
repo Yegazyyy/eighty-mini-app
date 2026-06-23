@@ -231,7 +231,8 @@ button:disabled {
   gap: 10px;
 }
 
-.activity-summary > div {
+.activity-summary > div,
+.activity-achievements {
   display: grid;
   gap: 5px;
   min-width: 0;
@@ -239,16 +240,20 @@ button:disabled {
   border: 1px solid var(--line);
   border-radius: 22px;
   background: var(--panel);
+  color: var(--ink);
   box-shadow: var(--shadow);
+  text-align: left;
 }
 
-.activity-summary span {
+.activity-summary span,
+.activity-achievements span {
   color: var(--muted);
   font-size: 12px;
   font-weight: 850;
 }
 
-.activity-summary strong {
+.activity-summary strong,
+.activity-achievements strong {
   font-size: 18px;
   line-height: 1.05;
   font-weight: 950;
@@ -663,6 +668,18 @@ button:disabled {
   margin: 3px 0 0;
   font-size: 24px;
   line-height: 1.1;
+  font-weight: 950;
+}
+
+.modal-section {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.modal-section h4 {
+  margin: 0;
+  font-size: 13px;
   font-weight: 950;
 }
 
@@ -1089,6 +1106,10 @@ button:disabled {
 }
 
 .weight-history-list .weight-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 34px;
+  align-items: center;
+  gap: 10px;
   background: var(--soft);
 }
 
@@ -1096,10 +1117,35 @@ button:disabled {
   font-size: 15px;
 }
 
-.weight-history-list .weight-row span {
+.weight-history-list .weight-row b {
   color: var(--ink);
   font-size: 18px;
   font-weight: 950;
+}
+
+.weight-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.profile-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  border: 0;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(37, 211, 102, 0.18), transparent 32%),
+    linear-gradient(145deg, #050806 0%, var(--green-deep) 100%);
+}
+
+.profile-actions .secondary-btn {
+  min-height: 52px;
+  padding: 0 12px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  text-align: center;
 }
 
 .achievements-list {
@@ -1398,7 +1444,7 @@ button:disabled {
 
 .weight-goal-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1703,6 +1749,10 @@ button:disabled {
 
   .target-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .weight-summary-grid {
+    grid-template-columns: 1fr;
   }
 
   .weight-add-form {

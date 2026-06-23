@@ -91,6 +91,10 @@ let entryDraft = { meal: "breakfast", productId: "", amount: "" };
 let entrySheetOpen = false;
 let addPanelMode = "existing";
 let waterHistoryOpen = false;
+let profileDetailsOpen = false;
+let weightHistoryOpen = false;
+let achievementsOpen = false;
+let earnedAchievementsOpen = false;
 let keyboardBaseHeight = window.visualViewport?.height || window.innerHeight;
 let keyboardTimer = null;
 let skipNextAddWeightClick = false;
@@ -152,7 +156,7 @@ function setupKeyboardBehavior() {
 
 async function bootstrap() {
   const initData = tg?.initData || "";
-  const response = await fetch("/api/bootstrap", {
+  const response = await fetch(apiUrl("/api/bootstrap"), {
     headers: initData ? { "X-Telegram-Init-Data": initData } : {}
   });
   const payload = await response.json();
@@ -173,6 +177,17 @@ async function bootstrap() {
   ensureShape();
   persist({ immediate: true });
   render();
+}
+
+function apiUrl(path) {
+  const url = new URL(path, window.location.origin);
+  if (!tg?.initData) {
+    const params = new URLSearchParams(window.location.search);
+    for (const key of ["telegramId", "name", "photoUrl"]) {
+      if (params.has(key)) url.searchParams.set(key, params.get(key));
+    }
+  }
+  return url;
 }
 
 function mergeState(serverState, localState) {
@@ -280,10 +295,8 @@ function ensureShape() {
   for (const date of new Set([...Object.keys(state.water), ...Object.keys(state.waterHistory)])) {
     state.water[date] = waterTotal(date);
   }
-  if (!state.weightLogs.length && number(state.profile.weight) > 0) {
-    state.weightLogs.push({ id: uid(), date: selectedDate, weight: state.profile.weight, createdAt: timestampForDate(selectedDate) });
-  }
   updateStats();
+  reconcileWeightAchievements();
   updateAchievements();
 }
 
@@ -295,7 +308,7 @@ function persist(options = {}) {
 
   const sync = async () => {
     const initData = tg?.initData || "";
-    await fetch("/api/sync", {
+    await fetch(apiUrl("/api/sync"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -481,11 +494,22 @@ function weightEntryTimestamp(item) {
   return Number.isFinite(time) ? time : 0;
 }
 
+function sortedWeightLogs() {
+  return [...(state.weightLogs || [])]
+    .filter((item) => number(item.weight) > 0 && item.date)
+    .sort((a, b) => weightEntryTimestamp(a) - weightEntryTimestamp(b));
+}
+
+function startWeight() {
+  return number(state.profile.weight);
+}
+
+function latestWeightEntry() {
+  return sortedWeightLogs().at(-1);
+}
+
 function currentWeight() {
-  const profileWeight = number(state.profile.weight);
-  if (profileWeight > 0) return profileWeight;
-  const sorted = [...state.weightLogs].sort((a, b) => weightEntryTimestamp(a) - weightEntryTimestamp(b));
-  return number(sorted.at(-1)?.weight);
+  return number(latestWeightEntry()?.weight) || startWeight();
 }
 
 function waterRate() {
@@ -589,12 +613,11 @@ function waterGoalDays() {
 }
 
 function firstWeight() {
-  const sorted = [...state.weightLogs].sort((a, b) => weightEntryTimestamp(a) - weightEntryTimestamp(b));
-  return number(sorted[0]?.weight);
+  return startWeight();
 }
 
 function weightLost() {
-  const start = firstWeight();
+  const start = startWeight();
   const current = currentWeight();
   return Math.max(0, start - current);
 }
@@ -602,7 +625,7 @@ function weightLost() {
 function targetReached() {
   const target = number(state.profile.targetWeight);
   const current = currentWeight();
-  const start = firstWeight();
+  const start = startWeight();
   if (target <= 0 || current <= 0) return false;
   if (start > target) return current <= target;
   if (start < target) return current >= target;
@@ -633,6 +656,20 @@ function updateAchievements() {
   }
 }
 
+function weightAchievementIds() {
+  return ["loss-5", "loss-10", "target-weight"];
+}
+
+function reconcileWeightAchievements() {
+  state.achievements ||= { unlocked: {} };
+  state.achievements.unlocked ||= {};
+  const current = Object.fromEntries(achievementDefinitions().map((item) => [item.id, item]));
+  for (const id of weightAchievementIds()) {
+    const item = current[id];
+    if (!item || item.value < item.target) delete state.achievements.unlocked[id];
+  }
+}
+
 function isAchievementUnlocked(id) {
   return Boolean(state.achievements?.unlocked?.[id]);
 }
@@ -660,6 +697,7 @@ function frequentProducts() {
 
 function setScreen(screen) {
   activeScreen = screen;
+  closeModal();
   if (screen !== "diary") entrySheetOpen = false;
   if (screen === "add" && !state.products.length) addPanelMode = "new";
   render();
@@ -692,6 +730,14 @@ function changeDate(delta) {
 
 function blurActive() {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+}
+
+function closeModal(name) {
+  if (!name || name === "water") waterHistoryOpen = false;
+  if (!name || name === "profile-details") profileDetailsOpen = false;
+  if (!name || name === "weight-history") weightHistoryOpen = false;
+  if (!name || name === "achievements") achievementsOpen = false;
+  if (!name || name === "earned-achievements") earnedAchievementsOpen = false;
 }
 
 function addEntry(form) {
@@ -808,7 +854,7 @@ function optionalNumber(value) {
 }
 
 function waterGoalFromForm(form) {
-  const input = form.elements?.waterGoal;
+  const input = form.elements?.waterGoal || form.querySelector?.('[name="waterGoal"]');
   return optionalNumber(input ? input.value : state.settings.waterGoal);
 }
 
@@ -817,7 +863,7 @@ function namedFieldValue(container, name) {
 }
 
 function waterAutoEnabledFromForm(form) {
-  const input = form.elements?.waterAuto;
+  const input = form.elements?.waterAuto || form.querySelector?.('[name="waterAuto"]');
   return input ? Boolean(input.checked) : !state.settings.waterManual;
 }
 
@@ -856,10 +902,25 @@ function syncProfileFromForm(form) {
 }
 
 function syncProfileWaterFromForm(form) {
-  const data = new FormData(form);
-  state.profile.weight = optionalNumber(data.get("weight"));
-  state.profile.activity = data.get("activity") || "";
+  const weight = namedFieldValue(form, "weight");
+  const activity = namedFieldValue(form, "activity");
+  if (weight !== "") state.profile.weight = optionalNumber(weight);
+  if (activity !== "") state.profile.activity = activity;
   syncWaterSettingsFromForm(form);
+}
+
+function syncTargetsFromForm(form) {
+  const data = new FormData(form);
+  const p = state.profile;
+  p.targetMode = data.get("targetMode") || "auto";
+  p.goalMode = data.get("goalMode") || p.goalMode || "loss";
+  p.activity = data.get("activity") || "";
+  p.deficitPercent = number(data.get("deficitPercent"), p.deficitPercent);
+  p.surplusPercent = number(data.get("surplusPercent"), p.surplusPercent);
+  p.manualTargets.calories = optionalNumber(data.get("manualCalories"));
+  p.manualTargets.protein = optionalNumber(data.get("manualProtein"));
+  p.manualTargets.fat = optionalNumber(data.get("manualFat"));
+  p.manualTargets.carbs = optionalNumber(data.get("manualCarbs"));
 }
 
 function refreshProfileWaterView() {
@@ -889,15 +950,7 @@ function updateProfileWaterFromForm(form) {
 
 function saveProfile(form) {
   syncProfileFromForm(form);
-  if (number(state.profile.weight) > 0) {
-    const existing = state.weightLogs.find((item) => item.date === selectedDate);
-    if (existing) {
-      existing.weight = state.profile.weight;
-      existing.createdAt ||= timestampForDate(selectedDate);
-    } else {
-      state.weightLogs.push({ id: uid(), date: selectedDate, weight: state.profile.weight, createdAt: timestampForDate(selectedDate) });
-    }
-  }
+  profileDetailsOpen = false;
   blurActive();
   persist();
   render();
@@ -916,11 +969,18 @@ function addWeight(form) {
   const weight = number(namedFieldValue(form, "weight"));
   if (!date || weight <= 0) return toast("Введите вес");
   state.weightLogs.push({ id: uid(), date, weight, createdAt: timestampForDate(date) });
-  state.profile.weight = weight;
   blurActive();
   persist();
   render();
   toast("Вес добавлен");
+}
+
+function deleteWeight(id) {
+  state.weightLogs = (state.weightLogs || []).filter((item) => item.id !== id);
+  reconcileWeightAchievements();
+  persist();
+  render();
+  toast("Запись веса удалена");
 }
 
 function handleAddWeightButton(button) {
@@ -951,8 +1011,11 @@ function render() {
       ${screenProfile(targets)}
     </main>
     ${tabs()}
-    <button class="keyboard-done" type="button" data-keyboard-done>Готово</button>
     ${waterHistoryOpen ? waterHistoryModal() : ""}
+    ${profileDetailsOpen ? profileDetailsModal(targets) : ""}
+    ${weightHistoryOpen ? weightHistoryModal() : ""}
+    ${achievementsOpen ? achievementsModal(false) : ""}
+    ${earnedAchievementsOpen ? achievementsModal(true) : ""}
   `;
 }
 
@@ -1008,7 +1071,7 @@ function diaryDayHeader() {
 function activitySummaryCard() {
   return `<div class="activity-summary">
     <div><span>🔥 Серия</span><strong>${round(state.stats.currentStreak)} дней подряд</strong></div>
-    <div><span>🏆 Достижения</span><strong>${earnedAchievementCount()} получено</strong></div>
+    <button class="activity-achievements" type="button" data-action="earned-achievements"><span>🏆 Достижения</span><strong>${earnedAchievementCount()} получено</strong></button>
   </div>`;
 }
 
@@ -1443,33 +1506,22 @@ function productRow(product) {
 }
 
 function screenProfile(targets) {
-  const p = state.profile;
   return `<section class="screen ${activeScreen === "profile" ? "active" : ""}">
-    <form class="stack" data-form="profile">
+    <div class="stack">
       <header class="screen-header profile-title"><span>ВАШИ НАСТРОЙКИ</span><h1>Профиль</h1></header>
       ${profileCard(targets)}
-      <div class="panel">
-        <div class="section-title"><h2>ОСНОВНЫЕ ДАННЫЕ</h2></div>
-        <div class="form-grid profile-fields">
-          <div class="field full"><label>Имя</label><input name="name" value="${escapeHtml(p.name || currentUser.name || "")}" placeholder="Ваше имя" enterkeyhint="next"></div>
-          <div class="field"><label>Возраст</label><input name="age" type="number" inputmode="numeric" value="${p.age || ""}" placeholder="28" enterkeyhint="next"></div>
-          <div class="field"><label>Пол</label><select name="sex">${option("", "Не выбран", p.sex)}${option("female", "Женский", p.sex)}${option("male", "Мужской", p.sex)}${option("other", "Другой", p.sex)}</select></div>
-          <div class="field"><label>Рост, см</label><input name="height" type="number" inputmode="numeric" value="${p.height || ""}" placeholder="170" enterkeyhint="next"></div>
-          <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${p.weight || ""}" placeholder="75" enterkeyhint="next"></div>
-          <div class="field"><label>Цель, кг</label><input name="targetWeight" type="number" inputmode="decimal" step="0.1" value="${p.targetWeight || ""}" placeholder="80" enterkeyhint="next"></div>
-          <div class="field full"><label>Активность</label><select name="activity">${option("", "Не выбрана", p.activity)}${Object.entries(labels.activities).map(([id, label]) => option(id, label, p.activity)).join("")}</select></div>
-        </div>
+      <div class="profile-actions panel">
+        <button class="secondary-btn" type="button" data-action="profile-details">Основные данные</button>
+        <button class="secondary-btn" type="button" data-action="achievements">Достижения</button>
       </div>
-      ${weightHistoryPanel()}
+      ${weightQuickPanel()}
       ${targetsPanel(targets)}
-      ${achievementsPanel()}
       ${profileWaterPanel()}
-      <button class="primary-btn sticky-save" type="submit">Сохранить</button>
       <div class="profile-app-info">
-        <span>Eighty v2.2.4</span>
+        <span>Eighty v2.2.0</span>
         <span>© 2026 by Егор Галкин</span>
       </div>
-    </form>
+    </div>
   </section>`;
 }
 
@@ -1477,8 +1529,9 @@ function profileCard(targets) {
   const name = currentUser.name || state.profile.name || "Пользователь";
   const photo = currentUser.photoUrl || state.telegram.photoUrl;
   const goal = state.profile.targetMode === "manual" ? "Ручной КБЖУ" : labels.goals[state.profile.goalMode];
-  const goalLine = targets.complete ? `${goal} · ${round(targets.calories)} ккал` : "Заполните данные для расчёта";
+  const telegramId = state.telegram.telegramId || currentUser.telegramId || "—";
   const current = currentWeight();
+  const start = startWeight();
   const target = number(state.profile.targetWeight);
   const remaining = current > 0 && target > 0 ? Math.abs(current - target) : 0;
   const reached = targetReached();
@@ -1486,46 +1539,70 @@ function profileCard(targets) {
     <div class="profile-main">
       <div class="avatar">${photo ? `<img src="${escapeHtml(photo)}" alt="">` : `<span>${escapeHtml(name.slice(0, 1).toUpperCase())}</span>`}</div>
       <div>
-        <span>Текущая цель</span>
+        <span>Имя пользователя</span>
         <h2>${escapeHtml(name)}</h2>
-        <p>${goalLine}</p>
+        <p>Текущая цель: ${goal}</p>
+        <p>Дневная цель: ${targetValue(targets.calories, "ккал")}</p>
+        <p>Telegram ID: ${escapeHtml(telegramId)}</p>
       </div>
     </div>
     <div class="weight-goal-grid">
+      ${smallStat("Начальный вес", start > 0 ? `${round(start, 1)} кг` : "—")}
       ${smallStat("Текущий вес", current > 0 ? `${round(current, 1)} кг` : "—")}
       ${smallStat("Цель", target > 0 ? `${round(target, 1)} кг` : "—")}
       ${smallStat("Осталось", reached ? "🎉 Цель достигнута" : remaining > 0 ? `${round(remaining, 1)} кг` : "—")}
     </div>
-    <div class="profile-targets">
-      ${smallStat("Калории", targetValue(targets.calories))}
-      ${smallStat("Белки", targetValue(targets.protein, "г"))}
-      ${smallStat("Жиры", targetValue(targets.fat, "г"))}
-      ${smallStat("Углеводы", targetValue(targets.carbs, "г"))}
-    </div>
   </div>`;
 }
 
-function weightHistoryPanel() {
-  const rows = [...state.weightLogs]
-    .filter((item) => number(item.weight) > 0 && item.date)
-    .sort((a, b) => weightEntryTimestamp(b) - weightEntryTimestamp(a));
+function weightRows() {
+  return sortedWeightLogs().sort((a, b) => weightEntryTimestamp(b) - weightEntryTimestamp(a));
+}
+
+function weightQuickPanel() {
+  const rows = weightRows();
   return `<div class="panel">
-    <div class="section-title"><h2>История веса</h2><span>${rows.length} записей</span></div>
+    <div class="section-title"><h2>Вес</h2><span>${rows.length} записей</span></div>
+    <div class="weight-summary-grid">
+      ${smallStat("Начальный", startWeight() > 0 ? `${round(startWeight(), 1)} кг` : "—")}
+      ${smallStat("Текущий", currentWeight() > 0 ? `${round(currentWeight(), 1)} кг` : "—")}
+      ${smallStat("Потеря", `${round(weightLost(), 1)} кг`)}
+    </div>
     <div class="form-grid weight-add-form" data-weight-form>
       <div class="field"><label>Дата</label><input name="date" type="date" value="${todayIso()}"></div>
       <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" placeholder="98"></div>
       <div class="field full"><button class="secondary-btn" type="button" data-action="add-weight">Добавить вес</button></div>
     </div>
+    <button class="secondary-btn full-btn" type="button" data-action="weight-history">История веса</button>
+  </div>`;
+}
+
+function weightHistoryModal() {
+  const rows = weightRows();
+  return `<div class="modal-backdrop" data-modal-close="weight-history">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="История веса">
+      <div class="modal-head">
+        <div>
+          <span>${rows.length} записей</span>
+          <h3>История веса</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-weight-history">×</button>
+      </div>
     <div class="weight-history-list">
       ${rows.length ? rows.map(weightHistoryRow).join("") : `<div class="empty-line">История веса пока пустая</div>`}
+    </div>
     </div>
   </div>`;
 }
 
 function weightHistoryRow(item) {
   return `<div class="weight-row">
-    <strong>${formatDateTime(weightEntryTime(item))}</strong>
-    <span>${round(item.weight, 1)} кг</span>
+    <div>
+      <strong>${formatDate(item.date)}</strong>
+      <span>${formatDateTime(weightEntryTime(item))}</span>
+    </div>
+    <b>${round(item.weight, 1)} кг</b>
+    <button class="icon-btn compact" type="button" data-delete-weight="${item.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
 
@@ -1552,9 +1629,36 @@ function achievementCard(item) {
   </div>`;
 }
 
+function achievementList(items, emptyText) {
+  return items.length
+    ? `<div class="achievements-list">${items.map(achievementCard).join("")}</div>`
+    : `<div class="empty-line">${emptyText}</div>`;
+}
+
+function achievementsModal(earnedOnly = false) {
+  const items = achievementDefinitions();
+  const earned = items.filter((item) => isAchievementUnlocked(item.id));
+  const progress = items.filter((item) => !isAchievementUnlocked(item.id));
+  return `<div class="modal-backdrop" data-modal-close="${earnedOnly ? "earned-achievements" : "achievements"}">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Достижения">
+      <div class="modal-head">
+        <div>
+          <span>${earned.length} / ${items.length}</span>
+          <h3>Достижения</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="${earnedOnly ? "close-earned-achievements" : "close-achievements"}">×</button>
+      </div>
+      ${earnedOnly
+        ? achievementList(earned, "Полученных достижений пока нет")
+        : `<div class="modal-section"><h4>Полученные</h4>${achievementList(earned, "Полученных достижений пока нет")}</div>
+           <div class="modal-section"><h4>В процессе</h4>${achievementList(progress, "Все достижения получены")}</div>`}
+    </div>
+  </div>`;
+}
+
 function targetsPanel(targets) {
   const p = state.profile;
-  return `<div class="panel">
+  return `<form class="panel" data-form="targets">
     <div class="section-title"><h2>КБЖУ</h2><span>${!targets.complete ? "Заполните данные" : targets.manual ? "Ручной режим" : `BMR ${round(targets.bmr)} ккал`}</span></div>
     <div class="segmented">
       <label><input type="radio" name="targetMode" value="auto" ${p.targetMode !== "manual" ? "checked" : ""}>Автоматический расчёт</label>
@@ -1563,12 +1667,13 @@ function targetsPanel(targets) {
     ${p.targetMode === "manual" ? manualTargetsFields(p) : autoTargetsFields(p)}
     <div class="target-grid">${targetCards(targets)}</div>
     <button class="secondary-btn recalc-btn" type="button" data-action="recalculate">Обновить расчёт</button>
-  </div>`;
+  </form>`;
 }
 
 function autoTargetsFields(p) {
   return `<div class="form-grid target-controls">
     <div class="field"><label>Цель</label><select name="goalMode">${Object.entries(labels.goals).map(([id, label]) => option(id, label, p.goalMode)).join("")}</select></div>
+    <div class="field"><label>Активность</label><select name="activity">${option("", "Не выбрана", p.activity)}${Object.entries(labels.activities).map(([id, label]) => option(id, label, p.activity)).join("")}</select></div>
     ${goalControls(p)}
     <input type="hidden" name="manualCalories" value="${p.manualTargets.calories}">
     <input type="hidden" name="manualProtein" value="${p.manualTargets.protein}">
@@ -1579,7 +1684,8 @@ function autoTargetsFields(p) {
 
 function manualTargetsFields(p) {
   return `<div class="form-grid target-controls">
-    <input type="hidden" name="goalMode" value="${p.goalMode}">
+    <div class="field"><label>Цель</label><select name="goalMode">${Object.entries(labels.goals).map(([id, label]) => option(id, label, p.goalMode)).join("")}</select></div>
+    <div class="field"><label>Активность</label><select name="activity">${option("", "Не выбрана", p.activity)}${Object.entries(labels.activities).map(([id, label]) => option(id, label, p.activity)).join("")}</select></div>
     <input type="hidden" name="deficitPercent" value="${p.deficitPercent}">
     <input type="hidden" name="surplusPercent" value="${p.surplusPercent}">
     <div class="field"><label>Калории</label><input name="manualCalories" type="number" inputmode="numeric" value="${p.manualTargets.calories || ""}" placeholder="1500"></div>
@@ -1605,6 +1711,39 @@ function targetCards(targets) {
     ${smallStat("Белки", targetValue(targets.protein, "г"))}
     ${smallStat("Жиры", targetValue(targets.fat, "г"))}
     ${smallStat("Углеводы", targetValue(targets.carbs, "г"))}`;
+}
+
+function profileDetailsModal() {
+  const p = state.profile;
+  return `<div class="modal-backdrop" data-modal-close="profile-details">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Основные данные">
+      <div class="modal-head">
+        <div>
+          <span>Профиль</span>
+          <h3>Основные данные</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-profile-details">×</button>
+      </div>
+      <form class="form-grid profile-fields" data-form="profile">
+        <div class="field full"><label>Имя</label><input name="name" value="${escapeHtml(p.name || currentUser.name || "")}" placeholder="Ваше имя" enterkeyhint="next"></div>
+        <div class="field"><label>Возраст</label><input name="age" type="number" inputmode="numeric" value="${p.age || ""}" placeholder="28" enterkeyhint="next"></div>
+        <div class="field"><label>Пол</label><select name="sex">${option("", "Не выбран", p.sex)}${option("female", "Женский", p.sex)}${option("male", "Мужской", p.sex)}${option("other", "Другой", p.sex)}</select></div>
+        <div class="field"><label>Рост, см</label><input name="height" type="number" inputmode="numeric" value="${p.height || ""}" placeholder="170" enterkeyhint="next"></div>
+        <div class="field"><label>Начальный вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${p.weight || ""}" placeholder="99" enterkeyhint="next"></div>
+        <div class="field"><label>Цель, кг</label><input name="targetWeight" type="number" inputmode="decimal" step="0.1" value="${p.targetWeight || ""}" placeholder="80" enterkeyhint="next"></div>
+        <input type="hidden" name="goalMode" value="${p.goalMode || "loss"}">
+        <input type="hidden" name="activity" value="${p.activity || ""}">
+        <input type="hidden" name="targetMode" value="${p.targetMode || "auto"}">
+        <input type="hidden" name="deficitPercent" value="${p.deficitPercent}">
+        <input type="hidden" name="surplusPercent" value="${p.surplusPercent}">
+        <input type="hidden" name="manualCalories" value="${p.manualTargets.calories}">
+        <input type="hidden" name="manualProtein" value="${p.manualTargets.protein}">
+        <input type="hidden" name="manualFat" value="${p.manualTargets.fat}">
+        <input type="hidden" name="manualCarbs" value="${p.manualTargets.carbs}">
+        <div class="field full"><button class="primary-btn full-btn" type="submit">Сохранить</button></div>
+      </form>
+    </div>
+  </div>`;
 }
 
 function profileWaterPanel() {
@@ -1657,8 +1796,8 @@ app.addEventListener("submit", (event) => {
 });
 
 app.addEventListener("click", (event) => {
-  if (event.target.dataset.modalClose === "water") {
-    waterHistoryOpen = false;
+  if (event.target.dataset.modalClose) {
+    closeModal(event.target.dataset.modalClose);
     render();
     return;
   }
@@ -1674,7 +1813,14 @@ app.addEventListener("click", (event) => {
   if (button.dataset.action === "next-date") changeDate(1);
   if (button.dataset.action === "recalculate") {
     const form = button.closest("form");
-    if (form) recalculateProfile(form);
+    if (form?.dataset.form === "targets") {
+      syncTargetsFromForm(form);
+      persist();
+      render();
+      toast("Расчёт обновлён");
+    } else if (form) {
+      recalculateProfile(form);
+    }
   }
   if (button.dataset.action === "add-weight") {
     if (skipNextAddWeightClick) {
@@ -1691,8 +1837,40 @@ app.addEventListener("click", (event) => {
     waterHistoryOpen = true;
     render();
   }
+  if (button.dataset.action === "profile-details") {
+    profileDetailsOpen = true;
+    render();
+  }
+  if (button.dataset.action === "weight-history") {
+    weightHistoryOpen = true;
+    render();
+  }
+  if (button.dataset.action === "achievements") {
+    achievementsOpen = true;
+    render();
+  }
+  if (button.dataset.action === "earned-achievements") {
+    earnedAchievementsOpen = true;
+    render();
+  }
   if (button.dataset.action === "close-water-history") {
     waterHistoryOpen = false;
+    render();
+  }
+  if (button.dataset.action === "close-profile-details") {
+    profileDetailsOpen = false;
+    render();
+  }
+  if (button.dataset.action === "close-weight-history") {
+    weightHistoryOpen = false;
+    render();
+  }
+  if (button.dataset.action === "close-achievements") {
+    achievementsOpen = false;
+    render();
+  }
+  if (button.dataset.action === "close-earned-achievements") {
+    earnedAchievementsOpen = false;
     render();
   }
   if (button.dataset.openAdd) openAdd(button.dataset.openAdd);
@@ -1700,6 +1878,7 @@ app.addEventListener("click", (event) => {
   if (button.dataset.deleteEntry) deleteEntry(button.dataset.deleteEntry);
   if (button.dataset.deleteProduct) deleteProduct(button.dataset.deleteProduct);
   if (button.dataset.deleteWater) deleteWaterEntry(button.dataset.deleteWater);
+  if (button.dataset.deleteWeight) deleteWeight(button.dataset.deleteWeight);
   if (button.dataset.range) {
     analyticsRange = button.dataset.range;
     render();
@@ -1743,7 +1922,7 @@ app.addEventListener("pointerdown", (event) => {
 app.addEventListener("change", (event) => {
   const target = event.target;
   const entryForm = target.closest('form[data-form="entry"]');
-  if (entryForm) {
+  if (entryForm && target.name === "productId") {
     const data = new FormData(entryForm);
     entryDraft.productId = data.get("productId") || entryDraft.productId;
     const product = selectedProduct();
@@ -1762,6 +1941,16 @@ app.addEventListener("change", (event) => {
   }
   if (profileForm && ["waterAuto", "activity"].includes(target.name)) {
     updateProfileWaterFromForm(profileForm);
+  }
+  const waterPanel = target.closest("[data-profile-water]");
+  if (waterPanel && target.name === "waterAuto") {
+    updateProfileWaterFromForm(waterPanel);
+  }
+  const targetsForm = target.closest('form[data-form="targets"]');
+  if (targetsForm && ["goalMode", "targetMode", "activity"].includes(target.name)) {
+    syncTargetsFromForm(targetsForm);
+    persist();
+    render();
   }
 });
 
@@ -1784,6 +1973,10 @@ app.addEventListener("input", (event) => {
   const profileForm = target.closest('form[data-form="profile"]');
   if (profileForm && ["weight", "waterGoal"].includes(target.name)) {
     updateProfileWaterFromForm(profileForm);
+  }
+  const waterPanel = target.closest("[data-profile-water]");
+  if (waterPanel && target.name === "waterGoal") {
+    updateProfileWaterFromForm(waterPanel);
   }
 });
 
