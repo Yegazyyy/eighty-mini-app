@@ -137,7 +137,8 @@ function getRequestUser(req, url) {
           .filter(Boolean)
           .join(" ") ||
         telegramUser.username ||
-        "Пользователь"
+        "Пользователь",
+      photoUrl: telegramUser.photo_url || ""
     };
   }
 
@@ -146,7 +147,8 @@ function getRequestUser(req, url) {
   return {
     id: fallbackId,
     telegramId: fallbackId === "demo-user" ? "" : fallbackId,
-    name: url.searchParams.get("name") || "Пользователь"
+    name: url.searchParams.get("name") || "Пользователь",
+    photoUrl: url.searchParams.get("photoUrl") || ""
   };
 }
 
@@ -154,8 +156,13 @@ function createDefaultState(user) {
   const today = new Date().toISOString().slice(0, 10);
 
   return {
-    version: 3,
+    version: 4,
     createdAt: new Date().toISOString(),
+    telegram: {
+      name: user.name,
+      telegramId: user.telegramId,
+      photoUrl: user.photoUrl || ""
+    },
     profile: {
       name: user.name,
       sex: "female",
@@ -165,6 +172,7 @@ function createDefaultState(user) {
       targetWeight: 65,
       activity: "low",
       goalMode: "loss",
+      targetMode: "auto",
       deficitPercent: 15,
       surplusPercent: 10,
       manualTargets: {
@@ -203,6 +211,12 @@ function serveStatic(req, res, url) {
     return;
   }
 
+  if (!existsSync(filePath) && !extname(filePath)) {
+    res.writeHead(200, { "Content-Type": mimeTypes[".html"] });
+    createReadStream(join(publicDir, "index.html")).pipe(res);
+    return;
+  }
+
   if (!existsSync(filePath)) {
     res.writeHead(404);
     res.end("Not found");
@@ -231,7 +245,8 @@ const server = http.createServer(async (req, res) => {
 
       return json(res, 200, {
         user: requestUser,
-        state: user.state
+        state: user.state,
+        storage: supabase ? "supabase" : "local-json"
       });
     }
 
@@ -243,7 +258,8 @@ const server = http.createServer(async (req, res) => {
 
       return json(res, 200, {
         ok: true,
-        savedAt: new Date().toISOString()
+        savedAt: new Date().toISOString(),
+        storage: supabase ? "supabase" : "local-json"
       });
     }
 
