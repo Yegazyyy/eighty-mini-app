@@ -3,7 +3,7 @@
     "demo-user": {
       "telegramId": "",
       "state": {
-        "version": 2,
+        "version": 5,
         "createdAt": "2026-06-22T14:48:10.863Z",
         "profile": {
           "name": "Пользователь",
@@ -11,16 +11,23 @@
           "age": 28,
           "height": 170,
           "weight": 75,
-          "targetWeight": 65,
+          "targetWeight": "",
           "activity": "low",
           "goalMode": "loss",
+          "targetMode": "auto",
           "deficitPercent": 15,
-          "surplusPercent": 10
+          "surplusPercent": 10,
+          "manualTargets": {
+            "calories": 1500,
+            "protein": 100,
+            "fat": 45,
+            "carbs": 140
+          }
         },
         "settings": {
           "waterEnabled": true,
           "waterManual": false,
-          "waterGoal": 2200
+          "waterGoal": 1500
         },
         "products": [
           {
@@ -76,18 +83,56 @@
                 "carbs": 1.1
               }
             }
-          ]
+          ],
+          "2026-06-23": [],
+          "2026-06-24": []
         },
         "water": {
-          "2026-06-22": 0
+          "2026-06-22": 0,
+          "2026-06-23": 0,
+          "2026-06-24": 3750
         },
         "weightLogs": [
           {
             "date": "2026-06-22",
             "weight": 75
+          },
+          {
+            "date": "2026-06-24",
+            "weight": 75
           }
-        ]
-      }
+        ],
+        "telegram": {
+          "name": "Пользователь",
+          "telegramId": "",
+          "photoUrl": ""
+        },
+        "waterHistory": {
+          "2026-06-24": [
+            {
+              "id": "anl3p5bnmqr3fuxg",
+              "amount": 3500,
+              "createdAt": "2026-06-24T12:00:00",
+              "migrated": true
+            },
+            {
+              "id": "62b6k6dmmqr3n7io",
+              "amount": 250,
+              "createdAt": "2026-06-23T20:30:59.000Z"
+            }
+          ]
+        },
+        "stats": {
+          "currentStreak": 1,
+          "maxStreak": 1
+        },
+        "achievements": {
+          "unlocked": {
+            "first-day": "2026-06-23T20:51:12.726Z"
+          }
+        }
+      },
+      "updatedAt": "2026-06-23T21:06:23.583Z"
     }
   }
 }

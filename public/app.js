@@ -90,6 +90,65 @@ let favoritesQuery = "";
 let entryDraft = { meal: "breakfast", productId: "", amount: "" };
 let entrySheetOpen = false;
 let addPanelMode = "existing";
+let waterHistoryOpen = false;
+let keyboardBaseHeight = window.visualViewport?.height || window.innerHeight;
+let keyboardTimer = null;
+let skipNextAddWeightClick = false;
+
+const formControlSelector = 'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), textarea, select';
+
+function isFormControl(element) {
+  return element instanceof HTMLElement && element.matches(formControlSelector);
+}
+
+function setKeyboardOffset(value = 0) {
+  document.documentElement.style.setProperty("--keyboard-offset", `${Math.max(0, Math.round(value))}px`);
+}
+
+function setKeyboardMode(active, offset = 0) {
+  document.documentElement.classList.toggle("keyboard-open", active);
+  document.body.classList.toggle("keyboard-open", active);
+  setKeyboardOffset(active ? offset : 0);
+}
+
+function updateKeyboardMode() {
+  const viewport = window.visualViewport;
+  const currentHeight = viewport?.height || window.innerHeight;
+  const focused = isFormControl(document.activeElement);
+
+  if (!focused) keyboardBaseHeight = Math.max(keyboardBaseHeight, currentHeight);
+
+  const heightDrop = Math.max(0, keyboardBaseHeight - currentHeight);
+  const viewportOffset = viewport ? Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop) : 0;
+  const keyboardOffset = Math.max(heightDrop, viewportOffset);
+  const keyboardVisible = focused && keyboardOffset > 90;
+
+  setKeyboardMode(focused && (keyboardVisible || Boolean(tg) || window.innerWidth <= 820), keyboardOffset);
+}
+
+function setupKeyboardBehavior() {
+  const viewport = window.visualViewport;
+  viewport?.addEventListener("resize", updateKeyboardMode);
+  viewport?.addEventListener("scroll", updateKeyboardMode);
+  window.addEventListener("resize", updateKeyboardMode);
+
+  document.addEventListener("focusin", (event) => {
+    if (!isFormControl(event.target)) return;
+    setKeyboardMode(true, Math.max(0, keyboardBaseHeight - (viewport?.height || window.innerHeight)));
+    clearTimeout(keyboardTimer);
+    keyboardTimer = setTimeout(() => {
+      updateKeyboardMode();
+      event.target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+    }, 120);
+  });
+
+  document.addEventListener("focusout", () => {
+    clearTimeout(keyboardTimer);
+    keyboardTimer = setTimeout(() => {
+      if (!isFormControl(document.activeElement)) setKeyboardMode(false);
+    }, 180);
+  });
+}
 
 async function bootstrap() {
   const initData = tg?.initData || "";
@@ -127,47 +186,46 @@ function mergeState(serverState, localState) {
     products: localState.products || serverState.products || [],
     diary: { ...(serverState.diary || {}), ...(localState.diary || {}) },
     water: { ...(serverState.water || {}), ...(localState.water || {}) },
-    weightLogs: localState.weightLogs || serverState.weightLogs || []
+    waterHistory: { ...(serverState.waterHistory || {}), ...(localState.waterHistory || {}) },
+    weightLogs: localState.weightLogs || serverState.weightLogs || [],
+    stats: { ...(serverState.stats || {}), ...(localState.stats || {}) },
+    achievements: { ...(serverState.achievements || {}), ...(localState.achievements || {}) }
   };
 }
 
 function ensureShape() {
   state ||= {};
-  state.version = 4;
+  state.version = 5;
   state.createdAt ||= new Date().toISOString();
   state.profile = {
-    name: currentUser.name || "Пользователь",
-    sex: "female",
-    age: 28,
-    height: 170,
-    weight: 75,
-    targetWeight: 65,
-    activity: "low",
+    name: currentUser.name || "",
+    sex: "",
+    age: "",
+    height: "",
+    weight: "",
+    targetWeight: "",
+    activity: "",
     goalMode: "loss",
     targetMode: "auto",
     deficitPercent: 15,
     surplusPercent: 10,
     manualTargets: {
-      calories: 1500,
-      protein: 100,
-      fat: 45,
-      carbs: 140
+      calories: "",
+      protein: "",
+      fat: "",
+      carbs: ""
     },
     ...(state.profile || {})
   };
   state.profile.targetMode ||= state.profile.goalMode === "manual" ? "manual" : "auto";
   if (state.profile.goalMode === "manual") state.profile.goalMode = "loss";
   state.profile.manualTargets = {
-    calories: 1500,
-    protein: 100,
-    fat: 45,
-    carbs: 140,
+    calories: "",
+    protein: "",
+    fat: "",
+    carbs: "",
     ...(state.profile.manualTargets || {})
   };
-  if (number(state.profile.manualTargets.calories) <= 0) state.profile.manualTargets.calories = 1500;
-  if (number(state.profile.manualTargets.protein) <= 0) state.profile.manualTargets.protein = 100;
-  if (number(state.profile.manualTargets.fat) <= 0) state.profile.manualTargets.fat = 45;
-  if (number(state.profile.manualTargets.carbs) <= 0) state.profile.manualTargets.carbs = 140;
 
   state.settings = {
     waterEnabled: true,
@@ -178,7 +236,25 @@ function ensureShape() {
   state.products ||= [];
   state.diary ||= {};
   state.water ||= {};
+  state.waterHistory ||= {};
   state.weightLogs ||= [];
+  state.weightLogs = state.weightLogs
+    .filter((item) => item && number(item.weight) > 0 && item.date)
+    .map((item) => ({
+      ...item,
+      id: item.id || uid(),
+      createdAt: !item.createdAt || item.createdAt === `${item.date}T12:00:00` ? `${item.date}T00:00:00` : item.createdAt
+    }));
+  state.stats = {
+    currentStreak: 0,
+    maxStreak: 0,
+    ...(state.stats || {})
+  };
+  state.achievements = {
+    unlocked: {},
+    ...(state.achievements || {})
+  };
+  state.achievements.unlocked ||= {};
   state.telegram = {
     name: currentUser.name || "",
     telegramId: currentUser.telegramId || "",
@@ -190,7 +266,25 @@ function ensureShape() {
   if (currentUser.photoUrl) state.telegram.photoUrl = currentUser.photoUrl;
   state.diary[selectedDate] ||= [];
   state.water[selectedDate] ||= 0;
-  if (!state.weightLogs.length) state.weightLogs.push({ date: selectedDate, weight: state.profile.weight });
+  for (const [date, total] of Object.entries(state.water)) {
+    if (number(total) > 0 && !state.waterHistory[date]?.length) {
+      state.waterHistory[date] = [{
+        id: uid(),
+        amount: number(total),
+        createdAt: `${date}T12:00:00`,
+        migrated: true
+      }];
+    }
+  }
+  state.waterHistory[selectedDate] ||= [];
+  for (const date of new Set([...Object.keys(state.water), ...Object.keys(state.waterHistory)])) {
+    state.water[date] = waterTotal(date);
+  }
+  if (!state.weightLogs.length && number(state.profile.weight) > 0) {
+    state.weightLogs.push({ id: uid(), date: selectedDate, weight: state.profile.weight, createdAt: timestampForDate(selectedDate) });
+  }
+  updateStats();
+  updateAchievements();
 }
 
 function persist(options = {}) {
@@ -268,6 +362,22 @@ function formatFullDate(value) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: "numeric" });
 }
 
+function formatDateTime(value) {
+  return new Date(value).toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+}
+
+function timestampForDate(date) {
+  const now = new Date();
+  const [year, month, day] = date.split("-").map(Number);
+  return new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds()).toISOString();
+}
+
 function pluralRecord(count) {
   const mod10 = count % 10;
   const mod100 = count % 100;
@@ -279,20 +389,35 @@ function pluralRecord(count) {
 function calcTargets() {
   const p = state.profile;
   if (p.targetMode === "manual") {
+    const calories = number(p.manualTargets.calories);
+    const protein = number(p.manualTargets.protein);
+    const fat = number(p.manualTargets.fat);
+    const carbs = number(p.manualTargets.carbs);
+    const complete =
+      p.manualTargets.calories !== "" &&
+      p.manualTargets.protein !== "" &&
+      p.manualTargets.fat !== "" &&
+      p.manualTargets.carbs !== "" &&
+      calories > 0;
     return {
       bmr: 0,
       maintenance: 0,
-      calories: number(p.manualTargets.calories),
-      protein: number(p.manualTargets.protein),
-      fat: number(p.manualTargets.fat),
-      carbs: number(p.manualTargets.carbs),
-      manual: true
+      calories: complete ? calories : 0,
+      protein: complete ? protein : 0,
+      fat: complete ? fat : 0,
+      carbs: complete ? carbs : 0,
+      manual: true,
+      complete
     };
   }
 
-  const weight = number(p.weight, 75);
-  const height = number(p.height, 170);
-  const age = number(p.age, 28);
+  const weight = number(p.weight);
+  const height = number(p.height);
+  const age = number(p.age);
+  const complete = weight > 0 && height > 0 && age > 0 && Boolean(p.sex) && Boolean(p.activity);
+  if (!complete) {
+    return { bmr: 0, maintenance: 0, calories: 0, protein: 0, fat: 0, carbs: 0, manual: false, complete: false };
+  }
   const sexOffset = p.sex === "male" ? 5 : p.sex === "female" ? -161 : -78;
   const bmr = 10 * weight + 6.25 * height - 5 * age + sexOffset;
   const maintenance = bmr * (activityFactors[p.activity] || activityFactors.low);
@@ -305,7 +430,13 @@ function calcTargets() {
   const protein = weight * (p.goalMode === "gain" ? 2 : p.goalMode === "loss" ? 1.8 : 1.6);
   const fat = weight * (p.goalMode === "loss" ? 0.8 : 0.9);
   const carbs = Math.max(0, (calories - protein * 4 - fat * 9) / 4);
-  return { bmr, maintenance, calories, protein, fat, carbs, manual: false };
+  return { bmr, maintenance, calories, protein, fat, carbs, manual: false, complete: true };
+}
+
+function targetValue(value, unit = "") {
+  const numeric = number(value);
+  if (numeric <= 0) return "—";
+  return `${round(numeric)}${unit ? ` ${unit}` : ""}`;
 }
 
 function calcProduct(product, amount) {
@@ -341,14 +472,190 @@ function entriesForDate(date = selectedDate) {
   return state.diary[date];
 }
 
+function weightEntryTime(item) {
+  return item.createdAt || `${item.date}T00:00:00`;
+}
+
+function weightEntryTimestamp(item) {
+  const time = Date.parse(weightEntryTime(item));
+  return Number.isFinite(time) ? time : 0;
+}
+
 function currentWeight() {
-  const sorted = [...state.weightLogs].sort((a, b) => a.date.localeCompare(b.date));
-  return number(sorted.at(-1)?.weight, state.profile.weight);
+  const profileWeight = number(state.profile.weight);
+  if (profileWeight > 0) return profileWeight;
+  const sorted = [...state.weightLogs].sort((a, b) => weightEntryTimestamp(a) - weightEntryTimestamp(b));
+  return number(sorted.at(-1)?.weight);
+}
+
+function waterRate() {
+  return ({
+    minimal: 30,
+    low: 32,
+    medium: 35,
+    high: 38,
+    veryHigh: 40
+  })[state.profile.activity] || 35;
+}
+
+function autoWaterGoal() {
+  const weight = number(currentWeight());
+  if (weight <= 0) return 0;
+  return Math.round(weight * waterRate() / 50) * 50;
 }
 
 function waterGoal() {
   if (state.settings.waterManual) return number(state.settings.waterGoal, 2200);
-  return Math.round(currentWeight() * 30 / 50) * 50;
+  return autoWaterGoal() || number(state.settings.waterGoal, 2200) || 2200;
+}
+
+function waterFormulaText() {
+  const weight = number(currentWeight());
+  if (state.settings.waterManual) return "Ручной режим: используется значение, которое вы ввели.";
+  if (weight <= 0) return "Автоматический расчёт: укажите вес, чтобы рассчитать норму воды.";
+  return `Автоматический расчёт: ${waterRate()} мл × ${round(weight, 1)} кг = ${round(waterGoal())} мл в день.`;
+}
+
+function waterRangeText() {
+  const weight = number(currentWeight());
+  if (weight <= 0) return "Рекомендуемый водный баланс: от 30 до 40 мл на 1 кг веса.";
+  const min = weight * 30;
+  const max = weight * 40;
+  return `Для вашего веса рекомендуется: ${round(min / 1000, 1)}–${round(max / 1000, 1)} л воды в день.`;
+}
+
+function waterEntries(date = selectedDate) {
+  state.waterHistory ||= {};
+  state.waterHistory[date] ||= [];
+  return state.waterHistory[date];
+}
+
+function waterTotal(date = selectedDate) {
+  return (state.waterHistory?.[date] || []).reduce((total, item) => total + number(item.amount), 0);
+}
+
+function syncWaterTotal(date = selectedDate) {
+  state.water ||= {};
+  state.water[date] = waterTotal(date);
+}
+
+function activeDay(date) {
+  return (state.diary?.[date] || []).length > 0 || waterTotal(date) >= waterGoal();
+}
+
+function allTrackedDates() {
+  return [...new Set([
+    ...Object.keys(state.diary || {}),
+    ...Object.keys(state.water || {}),
+    ...Object.keys(state.waterHistory || {})
+  ])].sort();
+}
+
+function dayDifference(a, b) {
+  return Math.round((new Date(`${b}T00:00:00`) - new Date(`${a}T00:00:00`)) / 86400000);
+}
+
+function streakMetrics() {
+  let current = 0;
+  for (let date = todayIso(); activeDay(date); date = addDays(date, -1)) current++;
+
+  const dates = allTrackedDates();
+  const start = dates[0] || todayIso();
+  let max = 0;
+  let run = 0;
+  for (let date = start; date <= todayIso(); date = addDays(date, 1)) {
+    if (activeDay(date)) {
+      run++;
+      max = Math.max(max, run);
+    } else {
+      run = 0;
+    }
+  }
+  return { current, max };
+}
+
+function updateStats() {
+  const streak = streakMetrics();
+  state.stats.currentStreak = streak.current;
+  state.stats.maxStreak = Math.max(number(state.stats.maxStreak), streak.max);
+}
+
+function totalMealEntries() {
+  return Object.values(state.diary || {}).reduce((sum, items) => sum + (items?.length || 0), 0);
+}
+
+function waterGoalDays() {
+  return allTrackedDates().filter((date) => waterTotal(date) >= waterGoal()).length;
+}
+
+function firstWeight() {
+  const sorted = [...state.weightLogs].sort((a, b) => weightEntryTimestamp(a) - weightEntryTimestamp(b));
+  return number(sorted[0]?.weight);
+}
+
+function weightLost() {
+  const start = firstWeight();
+  const current = currentWeight();
+  return Math.max(0, start - current);
+}
+
+function targetReached() {
+  const target = number(state.profile.targetWeight);
+  const current = currentWeight();
+  const start = firstWeight();
+  if (target <= 0 || current <= 0) return false;
+  if (start > target) return current <= target;
+  if (start < target) return current >= target;
+  return Math.abs(current - target) <= 0.1;
+}
+
+function achievementDefinitions() {
+  const activeDays = allTrackedDates().filter(activeDay).length;
+  return [
+    { id: "first-day", title: "🏆 Первый день", value: activeDays, target: 1 },
+    { id: "streak-7", title: "🔥 7 дней подряд", value: state.stats.maxStreak, target: 7 },
+    { id: "streak-30", title: "🔥 30 дней подряд", value: state.stats.maxStreak, target: 30 },
+    { id: "water-10", title: "💧 Выполнена норма воды 10 раз", value: waterGoalDays(), target: 10 },
+    { id: "water-50", title: "💧 Выполнена норма воды 50 раз", value: waterGoalDays(), target: 50 },
+    { id: "meals-100", title: "🍽 Добавлено 100 приёмов пищи", value: totalMealEntries(), target: 100 },
+    { id: "meals-500", title: "🍽 Добавлено 500 приёмов пищи", value: totalMealEntries(), target: 500 },
+    { id: "loss-5", title: "⚖ Потеряно 5 кг", value: weightLost(), target: 5 },
+    { id: "loss-10", title: "⚖ Потеряно 10 кг", value: weightLost(), target: 10 },
+    { id: "target-weight", title: "⚖ Достигнута цель по весу", value: targetReached() ? 1 : 0, target: 1 }
+  ];
+}
+
+function updateAchievements() {
+  for (const achievement of achievementDefinitions()) {
+    if (achievement.value >= achievement.target && !state.achievements.unlocked[achievement.id]) {
+      state.achievements.unlocked[achievement.id] = new Date().toISOString();
+    }
+  }
+}
+
+function isAchievementUnlocked(id) {
+  return Boolean(state.achievements?.unlocked?.[id]);
+}
+
+function earnedAchievementCount() {
+  return achievementDefinitions().filter((item) => isAchievementUnlocked(item.id)).length;
+}
+
+function productUsage() {
+  const counts = {};
+  for (const entries of Object.values(state.diary || {})) {
+    for (const item of entries || []) counts[item.productId] = (counts[item.productId] || 0) + 1;
+  }
+  return counts;
+}
+
+function frequentProducts() {
+  const counts = productUsage();
+  return [...state.products]
+    .map((product) => ({ ...product, uses: counts[product.id] || 0 }))
+    .filter((product) => product.uses > 0)
+    .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name))
+    .slice(0, 10);
 }
 
 function setScreen(screen) {
@@ -453,9 +760,39 @@ function deleteProduct(id) {
 }
 
 function addWater(ml) {
-  state.water[selectedDate] = Math.max(0, number(state.water[selectedDate]) + ml);
+  const amount = number(ml);
+  if (amount <= 0) return;
+  waterEntries(selectedDate).push({
+    id: uid(),
+    amount,
+    createdAt: timestampForDate(selectedDate)
+  });
+  syncWaterTotal(selectedDate);
   persist();
   render();
+}
+
+function deleteWaterEntry(id) {
+  state.waterHistory[selectedDate] = waterEntries(selectedDate).filter((item) => item.id !== id);
+  syncWaterTotal(selectedDate);
+  persist();
+  render();
+}
+
+function saveWaterHistory(form) {
+  const data = new FormData(form);
+  state.waterHistory[selectedDate] = waterEntries(selectedDate)
+    .map((item) => ({
+      ...item,
+      amount: number(data.get(`water-${item.id}`))
+    }))
+    .filter((item) => item.amount > 0);
+  syncWaterTotal(selectedDate);
+  waterHistoryOpen = false;
+  blurActive();
+  persist();
+  render();
+  toast("История воды сохранена");
 }
 
 function addWaterManual(form) {
@@ -466,33 +803,101 @@ function addWaterManual(form) {
   form.reset();
 }
 
+function optionalNumber(value) {
+  return value === "" || value === null || value === undefined ? "" : number(value);
+}
+
+function waterGoalFromForm(form) {
+  const input = form.elements?.waterGoal;
+  return optionalNumber(input ? input.value : state.settings.waterGoal);
+}
+
+function namedFieldValue(container, name) {
+  return container.elements?.[name]?.value ?? container.querySelector?.(`[name="${name}"]`)?.value ?? "";
+}
+
+function waterAutoEnabledFromForm(form) {
+  const input = form.elements?.waterAuto;
+  return input ? Boolean(input.checked) : !state.settings.waterManual;
+}
+
+function syncWaterSettingsFromForm(form) {
+  const auto = waterAutoEnabledFromForm(form);
+  const formGoal = waterGoalFromForm(form);
+  const fallbackGoal = autoWaterGoal() || number(state.settings.waterGoal, 2200) || 2200;
+
+  state.settings.waterManual = !auto;
+  if (state.settings.waterManual) {
+    state.settings.waterGoal = number(formGoal) > 0 ? formGoal : fallbackGoal;
+  } else if (formGoal !== "" && number(formGoal) > 0) {
+    state.settings.waterGoal = formGoal;
+  }
+}
+
 function syncProfileFromForm(form) {
   const data = new FormData(form);
   const p = state.profile;
-  p.name = String(data.get("name") || "").trim() || state.telegram.name || "Пользователь";
-  p.sex = data.get("sex") || "female";
-  p.age = number(data.get("age"), p.age);
-  p.height = number(data.get("height"), p.height);
-  p.weight = number(data.get("weight"), p.weight);
-  p.targetWeight = number(data.get("targetWeight"), p.targetWeight);
-  p.activity = data.get("activity") || "low";
+  p.name = String(data.get("name") || "").trim() || state.telegram.name || "";
+  p.sex = data.get("sex") || "";
+  p.age = optionalNumber(data.get("age"));
+  p.height = optionalNumber(data.get("height"));
+  p.weight = optionalNumber(data.get("weight"));
+  p.targetWeight = optionalNumber(data.get("targetWeight"));
+  p.activity = data.get("activity") || "";
   p.goalMode = data.get("goalMode") || "loss";
   p.targetMode = data.get("targetMode") || "auto";
   p.deficitPercent = number(data.get("deficitPercent"), p.deficitPercent);
   p.surplusPercent = number(data.get("surplusPercent"), p.surplusPercent);
-  p.manualTargets.calories = number(data.get("manualCalories"), p.manualTargets.calories);
-  p.manualTargets.protein = number(data.get("manualProtein"), p.manualTargets.protein);
-  p.manualTargets.fat = number(data.get("manualFat"), p.manualTargets.fat);
-  p.manualTargets.carbs = number(data.get("manualCarbs"), p.manualTargets.carbs);
-  state.settings.waterManual = data.get("waterManual") === "on";
-  state.settings.waterGoal = number(data.get("waterGoal"), state.settings.waterGoal);
+  p.manualTargets.calories = optionalNumber(data.get("manualCalories"));
+  p.manualTargets.protein = optionalNumber(data.get("manualProtein"));
+  p.manualTargets.fat = optionalNumber(data.get("manualFat"));
+  p.manualTargets.carbs = optionalNumber(data.get("manualCarbs"));
+  syncWaterSettingsFromForm(form);
+}
+
+function syncProfileWaterFromForm(form) {
+  const data = new FormData(form);
+  state.profile.weight = optionalNumber(data.get("weight"));
+  state.profile.activity = data.get("activity") || "";
+  syncWaterSettingsFromForm(form);
+}
+
+function refreshProfileWaterView() {
+  const panel = app.querySelector("[data-profile-water]");
+  if (!panel) return;
+  const manualInput = panel.querySelector('[name="waterGoal"]');
+  const goalLabel = panel.querySelector("[data-water-goal-label]");
+  const formula = panel.querySelector("[data-water-formula]");
+  const range = panel.querySelector("[data-water-range]");
+  const mode = panel.querySelector("[data-water-mode]");
+
+  if (manualInput) {
+    manualInput.disabled = !state.settings.waterManual;
+    if (document.activeElement !== manualInput) manualInput.value = state.settings.waterGoal || "";
+  }
+  if (goalLabel) goalLabel.textContent = `${round(waterGoal() / 1000, 1)} л в день`;
+  if (formula) formula.textContent = waterFormulaText();
+  if (range) range.textContent = waterRangeText();
+  if (mode) mode.textContent = state.settings.waterManual ? "Ручной режим" : "Автоматический расчёт";
+}
+
+function updateProfileWaterFromForm(form) {
+  syncProfileWaterFromForm(form);
+  refreshProfileWaterView();
+  persist();
 }
 
 function saveProfile(form) {
   syncProfileFromForm(form);
-  const existing = state.weightLogs.find((item) => item.date === selectedDate);
-  if (existing) existing.weight = state.profile.weight;
-  else state.weightLogs.push({ date: selectedDate, weight: state.profile.weight });
+  if (number(state.profile.weight) > 0) {
+    const existing = state.weightLogs.find((item) => item.date === selectedDate);
+    if (existing) {
+      existing.weight = state.profile.weight;
+      existing.createdAt ||= timestampForDate(selectedDate);
+    } else {
+      state.weightLogs.push({ id: uid(), date: selectedDate, weight: state.profile.weight, createdAt: timestampForDate(selectedDate) });
+    }
+  }
   blurActive();
   persist();
   render();
@@ -507,17 +912,20 @@ function recalculateProfile(form) {
 }
 
 function addWeight(form) {
-  const data = new FormData(form);
-  const date = data.get("date");
-  const weight = number(data.get("weight"));
+  const date = namedFieldValue(form, "date");
+  const weight = number(namedFieldValue(form, "weight"));
   if (!date || weight <= 0) return toast("Введите вес");
-  const existing = state.weightLogs.find((item) => item.date === date);
-  if (existing) existing.weight = weight;
-  else state.weightLogs.push({ date, weight });
-  state.profile.weight = currentWeight();
+  state.weightLogs.push({ id: uid(), date, weight, createdAt: timestampForDate(date) });
+  state.profile.weight = weight;
   blurActive();
   persist();
   render();
+  toast("Вес добавлен");
+}
+
+function handleAddWeightButton(button) {
+  const form = button.closest("[data-weight-form]");
+  if (form) addWeight(form);
 }
 
 function filteredFavorites() {
@@ -543,6 +951,8 @@ function render() {
       ${screenProfile(targets)}
     </main>
     ${tabs()}
+    <button class="keyboard-done" type="button" data-keyboard-done>Готово</button>
+    ${waterHistoryOpen ? waterHistoryModal() : ""}
   `;
 }
 
@@ -563,7 +973,7 @@ function tabs() {
 
 function screenDiary(targets, consumed) {
   const remaining = Math.max(0, targets.calories - consumed.calories);
-  const calorieProgress = clamp(consumed.calories / Math.max(1, targets.calories) * 100, 0, 100);
+  const calorieProgress = targets.complete ? clamp(consumed.calories / Math.max(1, targets.calories) * 100, 0, 100) : 0;
   return `<section class="screen ${activeScreen === "diary" ? "active" : ""}">
     <div class="stack">
       <header class="app-header">
@@ -573,8 +983,9 @@ function screenDiary(targets, consumed) {
           <p>Твой путь к цели. Контроль питания, веса и прогресса.</p>
         </div>
       </header>
-      <div class="hello-card">Привет, ${escapeHtml(currentUser.name || state.profile.name || "Пользователь")}!</div>
+      ${diaryDayHeader()}
       ${dayCard()}
+      ${activitySummaryCard()}
       ${energyCard(targets, consumed, remaining, calorieProgress)}
       ${mealsSection()}
       ${entrySheetOpen ? entrySheet() : ""}
@@ -583,14 +994,27 @@ function screenDiary(targets, consumed) {
   </section>`;
 }
 
-function dayCard() {
-  const count = entriesForDate().length;
+function diaryDayHeader() {
   const isToday = selectedDate >= todayIso();
-  return `<div class="day-wrap">
+  return `<div class="diary-day-head">
+    <div class="hello-card">Привет, ${escapeHtml(currentUser.name || state.profile.name || "Пользователь")}!</div>
     <div class="day-actions">
       <button class="icon-btn" data-action="prev-date" title="Предыдущий день">${icons.prev}</button>
       <button class="icon-btn" data-action="next-date" title="Следующий день" ${isToday ? "disabled" : ""}>${icons.next}</button>
     </div>
+  </div>`;
+}
+
+function activitySummaryCard() {
+  return `<div class="activity-summary">
+    <div><span>🔥 Серия</span><strong>${round(state.stats.currentStreak)} дней подряд</strong></div>
+    <div><span>🏆 Достижения</span><strong>${earnedAchievementCount()} получено</strong></div>
+  </div>`;
+}
+
+function dayCard() {
+  const count = entriesForDate().length;
+  return `<div class="day-wrap">
     <div class="day-card">
       <div>
         <strong>${formatDayTitle(selectedDate)}</strong>
@@ -602,6 +1026,7 @@ function dayCard() {
 }
 
 function energyCard(targets, consumed, remaining, progress) {
+  const goalText = targets.complete ? `Суточная цель — ${round(targets.calories)} ккал` : "Заполните профиль для расчёта цели";
   return `<div class="energy-card">
     <div class="energy-ring" style="--progress:${progress}">
       <div>
@@ -613,7 +1038,7 @@ function energyCard(targets, consumed, remaining, progress) {
       <h2>ЭНЕРГИЯ</h2>
       <p>съедено калорий</p>
       <strong>${round(consumed.calories)} ккал</strong>
-      <p>Суточная цель — ${round(targets.calories)} ккал</p>
+      <p>${goalText}</p>
       ${macroLine("Белки", consumed.protein, targets.protein, "protein")}
       ${macroLine("Жиры", consumed.fat, targets.fat, "fat")}
       ${macroLine("Углеводы", consumed.carbs, targets.carbs, "carbs")}
@@ -624,7 +1049,7 @@ function energyCard(targets, consumed, remaining, progress) {
 function macroLine(label, value, target, kind) {
   const progress = clamp(value / Math.max(1, target) * 100, 0, 100);
   return `<div class="macro-line ${kind}">
-    <div><span>${label}</span><b>${round(value)} / ${round(target)} г</b></div>
+    <div><span>${label}</span><b>${round(value)} / ${targetValue(target, "г")}</b></div>
     <div class="progress" style="--value:${progress}%"><i></i></div>
   </div>`;
 }
@@ -678,11 +1103,20 @@ function entryRow(item) {
 }
 
 function waterSection() {
-  const water = number(state.water[selectedDate]);
+  const water = waterTotal(selectedDate);
   const goal = waterGoal();
+  const complete = goal > 0 && water >= goal;
   return `<section class="water-card">
-    <div class="section-title"><h2>Вода</h2><span>${round(water / 1000, 1)} / ${round(goal / 1000, 1)} л</span></div>
-    <div class="progress large water" style="--value:${clamp(water / Math.max(1, goal) * 100, 0, 100)}%"><i></i></div>
+    <div class="section-title water-title">
+      <h2>Вода</h2>
+      <div>
+        <span>${round(water / 1000, 1)} / ${round(goal / 1000, 1)} л</span>
+        <button class="history-btn" type="button" data-action="water-history">История</button>
+      </div>
+    </div>
+    ${complete
+      ? `<div class="water-complete"><strong>Водный баланс выполнен!</strong><span>${round(water)} мл из ${round(goal)} мл</span></div>`
+      : `<div class="progress large water" style="--value:${clamp(water / Math.max(1, goal) * 100, 0, 100)}%"><i></i></div>`}
     <div class="chip-row">
       <button class="chip-btn" data-water="250">+250 мл</button>
       <button class="chip-btn" data-water="500">+500 мл</button>
@@ -693,6 +1127,46 @@ function waterSection() {
       <button class="secondary-btn" type="submit">Готово</button>
     </form>
   </section>`;
+}
+
+function waterHistoryModal() {
+  const entries = [...waterEntries(selectedDate)].sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+  const total = waterTotal(selectedDate);
+  return `<div class="modal-backdrop" data-modal-close="water">
+    <div class="modal-card water-modal" role="dialog" aria-modal="true" aria-label="История воды">
+      <div class="modal-head">
+        <div>
+          <span>${formatDayTitle(selectedDate)}</span>
+          <h3>История воды</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-water-history">×</button>
+      </div>
+      <form data-form="water-history">
+        <div class="water-history-list">
+          ${entries.length ? entries.map(waterHistoryRow).join("") : `<div class="empty-line">За этот день воды пока нет</div>`}
+        </div>
+        <div class="water-history-total">
+          <span>Итого</span>
+          <strong>${round(total)} мл</strong>
+        </div>
+        <button class="primary-btn full-btn" type="submit">Сохранить</button>
+      </form>
+    </div>
+  </div>`;
+}
+
+function waterHistoryRow(item) {
+  return `<div class="water-history-row">
+    <div>
+      <strong>+${round(item.amount)} мл</strong>
+      <span>${formatDateTime(item.createdAt)}</span>
+    </div>
+    <label>
+      <span>мл</span>
+      <input name="water-${item.id}" type="number" min="0" step="1" inputmode="numeric" value="${round(item.amount)}">
+    </label>
+    <button class="icon-btn compact" type="button" data-delete-water="${item.id}" title="Удалить">${icons.trash}</button>
+  </div>`;
 }
 
 function screenAnalytics() {
@@ -709,12 +1183,14 @@ function screenAnalytics() {
         ${[["week", "Неделя"], ["month", "Месяц"]].map(([id, label]) => `<button class="${analyticsRange === id ? "active" : ""}" data-range="${id}">${label}</button>`).join("")}
       </div>
       ${analyticsHistoryView(history)}
-      <div class="stat-grid">
-        ${statCard("Средние калории", `${round(stats.calories)} ккал`)}
-        ${statCard("Средние белки", `${round(stats.protein)} г`)}
-        ${statCard("Средние жиры", `${round(stats.fat)} г`)}
-        ${statCard("Средние углеводы", `${round(stats.carbs)} г`)}
+      <div class="stat-grid analytics-stats">
+        ${statCard("Калории", `${round(stats.calories)} ккал`)}
+        ${statCard("Белки", `${round(stats.protein)} г`)}
+        ${statCard("Жиры", `${round(stats.fat)} г`)}
+        ${statCard("Углеводы", `${round(stats.carbs)} г`)}
       </div>
+      ${analyticsWaterCard()}
+      ${periodSummaryCard(stats, history.length)}
     </div>
   </section>`;
 }
@@ -739,6 +1215,20 @@ function analyticsDayCard(stats) {
   </section>`;
 }
 
+function analyticsWaterCard() {
+  const water = waterTotal(analyticsDate);
+  const goal = waterGoal();
+  const percent = clamp(water / Math.max(1, goal) * 100, 0, 100);
+  return `<section class="analytics-water-card">
+    <div>
+      <span>Вода</span>
+      <strong>${round(water)} мл / ${round(goal)} мл</strong>
+      <p>${round(percent)}% выполнено</p>
+    </div>
+    <div class="progress large water" style="--value:${percent}%"><i></i></div>
+  </section>`;
+}
+
 function analyticsHistory() {
   const days = analyticsRange === "month" ? 30 : 7;
   const end = new Date(`${analyticsDate}T00:00:00`);
@@ -757,21 +1247,42 @@ function analyticsHistory() {
 function analyticsStats(history) {
   const totals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
   let counted = 0;
+  let waterPercent = 0;
+  let filledDays = 0;
   for (const row of history) {
-    if (!row.count) continue;
-    totals.calories += row.nutrients.calories;
-    totals.protein += row.nutrients.protein;
-    totals.fat += row.nutrients.fat;
-    totals.carbs += row.nutrients.carbs;
-    counted++;
+    waterPercent += clamp(waterTotal(row.date) / Math.max(1, waterGoal()) * 100, 0, 100);
+    if (activeDay(row.date)) filledDays++;
+    if (row.count) {
+      totals.calories += row.nutrients.calories;
+      totals.protein += row.nutrients.protein;
+      totals.fat += row.nutrients.fat;
+      totals.carbs += row.nutrients.carbs;
+      counted++;
+    }
   }
   const divisor = Math.max(1, counted);
   return {
     calories: totals.calories / divisor,
     protein: totals.protein / divisor,
     fat: totals.fat / divisor,
-    carbs: totals.carbs / divisor
+    carbs: totals.carbs / divisor,
+    waterPercent: waterPercent / Math.max(1, history.length),
+    filledDays
   };
+}
+
+function periodSummaryCard(stats, totalDays) {
+  return `<section class="section-block">
+    <h2>${analyticsRange === "month" ? "ИТОГИ МЕСЯЦА" : "ИТОГИ НЕДЕЛИ"}</h2>
+    <div class="summary-grid">
+      ${statCard("Среднее ккал", round(stats.calories))}
+      ${statCard("Средние белки", `${round(stats.protein)} г`)}
+      ${statCard("Средние жиры", `${round(stats.fat)} г`)}
+      ${statCard("Средние углеводы", `${round(stats.carbs)} г`)}
+      ${statCard("Выполнение воды", `${round(stats.waterPercent)}%`)}
+      ${statCard("Заполнено дней", `${stats.filledDays} из ${totalDays}`)}
+    </div>
+  </section>`;
 }
 
 function analyticsHistoryView(history) {
@@ -832,7 +1343,7 @@ function screenAdd() {
         <button class="${addPanelMode === "existing" ? "active" : ""}" data-add-panel="existing">В рацион</button>
         <button class="${addPanelMode === "new" ? "active" : ""}" data-add-panel="new">Новый продукт</button>
       </div>
-      ${addPanelMode === "new" ? manualProductForm() : existingProductPanel()}
+      ${entrySheetOpen ? entrySheet() : addPanelMode === "new" ? manualProductForm() : existingProductPanel()}
     </div>
   </section>`;
 }
@@ -851,6 +1362,7 @@ function existingProductPanel() {
     </div>`;
   }
   return `<div class="panel">
+    ${frequentProductsSection()}
     <div class="segmented meal-segments">
       ${Object.entries(labels.meals).map(([id, data]) => `<button class="${entryDraft.meal === id ? "active" : ""}" data-add-meal="${id}">${data.short}</button>`).join("")}
     </div>
@@ -860,6 +1372,20 @@ function existingProductPanel() {
       ${isPiece ? pieceCounter(entryDraft.amount) : amountField()}
       <div class="field full"><button class="primary-btn" type="submit">Готово</button></div>
     </form>
+  </div>`;
+}
+
+function frequentProductsSection() {
+  const products = frequentProducts();
+  if (!products.length) return "";
+  return `<div class="frequent-block">
+    <div class="section-title compact-title"><h2>Часто используемые</h2><span>ТОП-${products.length}</span></div>
+    <div class="frequent-list">
+      ${products.map((product) => `<button type="button" class="frequent-chip" data-quick-product="${product.id}">
+        <strong>${escapeHtml(product.name)}</strong>
+        <span>${product.uses} раз</span>
+      </button>`).join("")}
+    </div>
   </div>`;
 }
 
@@ -927,17 +1453,20 @@ function screenProfile(targets) {
         <div class="form-grid profile-fields">
           <div class="field full"><label>Имя</label><input name="name" value="${escapeHtml(p.name || currentUser.name || "")}" placeholder="Ваше имя" enterkeyhint="next"></div>
           <div class="field"><label>Возраст</label><input name="age" type="number" inputmode="numeric" value="${p.age || ""}" placeholder="28" enterkeyhint="next"></div>
-          <div class="field"><label>Пол</label><select name="sex">${option("female", "Женский", p.sex)}${option("male", "Мужской", p.sex)}${option("other", "Другой", p.sex)}</select></div>
+          <div class="field"><label>Пол</label><select name="sex">${option("", "Не выбран", p.sex)}${option("female", "Женский", p.sex)}${option("male", "Мужской", p.sex)}${option("other", "Другой", p.sex)}</select></div>
           <div class="field"><label>Рост, см</label><input name="height" type="number" inputmode="numeric" value="${p.height || ""}" placeholder="170" enterkeyhint="next"></div>
           <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${p.weight || ""}" placeholder="75" enterkeyhint="next"></div>
-          <div class="field full"><label>Активность</label><select name="activity">${Object.entries(labels.activities).map(([id, label]) => option(id, label, p.activity)).join("")}</select></div>
+          <div class="field"><label>Цель, кг</label><input name="targetWeight" type="number" inputmode="decimal" step="0.1" value="${p.targetWeight || ""}" placeholder="80" enterkeyhint="next"></div>
+          <div class="field full"><label>Активность</label><select name="activity">${option("", "Не выбрана", p.activity)}${Object.entries(labels.activities).map(([id, label]) => option(id, label, p.activity)).join("")}</select></div>
         </div>
       </div>
+      ${weightHistoryPanel()}
       ${targetsPanel(targets)}
+      ${achievementsPanel()}
       ${profileWaterPanel()}
       <button class="primary-btn sticky-save" type="submit">Сохранить</button>
       <div class="profile-app-info">
-        <span>Eighty v2.1.0</span>
+        <span>Eighty v2.2.4</span>
         <span>© 2026 by Егор Галкин</span>
       </div>
     </form>
@@ -948,28 +1477,85 @@ function profileCard(targets) {
   const name = currentUser.name || state.profile.name || "Пользователь";
   const photo = currentUser.photoUrl || state.telegram.photoUrl;
   const goal = state.profile.targetMode === "manual" ? "Ручной КБЖУ" : labels.goals[state.profile.goalMode];
+  const goalLine = targets.complete ? `${goal} · ${round(targets.calories)} ккал` : "Заполните данные для расчёта";
+  const current = currentWeight();
+  const target = number(state.profile.targetWeight);
+  const remaining = current > 0 && target > 0 ? Math.abs(current - target) : 0;
+  const reached = targetReached();
   return `<div class="profile-card">
     <div class="profile-main">
       <div class="avatar">${photo ? `<img src="${escapeHtml(photo)}" alt="">` : `<span>${escapeHtml(name.slice(0, 1).toUpperCase())}</span>`}</div>
       <div>
         <span>Текущая цель</span>
         <h2>${escapeHtml(name)}</h2>
-        <p>${goal} · ${round(targets.calories)} ккал</p>
+        <p>${goalLine}</p>
       </div>
     </div>
-    <div class="profile-targets">
-      ${smallStat("Калории", round(targets.calories))}
-      ${smallStat("Белки", `${round(targets.protein)} г`)}
-      ${smallStat("Жиры", `${round(targets.fat)} г`)}
-      ${smallStat("Углеводы", `${round(targets.carbs)} г`)}
+    <div class="weight-goal-grid">
+      ${smallStat("Текущий вес", current > 0 ? `${round(current, 1)} кг` : "—")}
+      ${smallStat("Цель", target > 0 ? `${round(target, 1)} кг` : "—")}
+      ${smallStat("Осталось", reached ? "🎉 Цель достигнута" : remaining > 0 ? `${round(remaining, 1)} кг` : "—")}
     </div>
+    <div class="profile-targets">
+      ${smallStat("Калории", targetValue(targets.calories))}
+      ${smallStat("Белки", targetValue(targets.protein, "г"))}
+      ${smallStat("Жиры", targetValue(targets.fat, "г"))}
+      ${smallStat("Углеводы", targetValue(targets.carbs, "г"))}
+    </div>
+  </div>`;
+}
+
+function weightHistoryPanel() {
+  const rows = [...state.weightLogs]
+    .filter((item) => number(item.weight) > 0 && item.date)
+    .sort((a, b) => weightEntryTimestamp(b) - weightEntryTimestamp(a));
+  return `<div class="panel">
+    <div class="section-title"><h2>История веса</h2><span>${rows.length} записей</span></div>
+    <div class="form-grid weight-add-form" data-weight-form>
+      <div class="field"><label>Дата</label><input name="date" type="date" value="${todayIso()}"></div>
+      <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" placeholder="98"></div>
+      <div class="field full"><button class="secondary-btn" type="button" data-action="add-weight">Добавить вес</button></div>
+    </div>
+    <div class="weight-history-list">
+      ${rows.length ? rows.map(weightHistoryRow).join("") : `<div class="empty-line">История веса пока пустая</div>`}
+    </div>
+  </div>`;
+}
+
+function weightHistoryRow(item) {
+  return `<div class="weight-row">
+    <strong>${formatDateTime(weightEntryTime(item))}</strong>
+    <span>${round(item.weight, 1)} кг</span>
+  </div>`;
+}
+
+function achievementsPanel() {
+  const items = achievementDefinitions();
+  return `<div class="panel">
+    <div class="section-title"><h2>Достижения</h2><span>${earnedAchievementCount()} / ${items.length}</span></div>
+    <div class="achievements-list">
+      ${items.map(achievementCard).join("")}
+    </div>
+  </div>`;
+}
+
+function achievementCard(item) {
+  const done = isAchievementUnlocked(item.id);
+  const progress = done ? 100 : clamp(item.value / Math.max(1, item.target) * 100, 0, 100);
+  const value = item.id.startsWith("loss") ? round(item.value, 1) : round(item.value);
+  return `<div class="achievement-card ${done ? "done" : ""}">
+    <div>
+      <strong>${item.title}</strong>
+      <span>${done ? "Получено ✅" : `${value} / ${item.target}`}</span>
+    </div>
+    <div class="progress" style="--value:${progress}%"><i></i></div>
   </div>`;
 }
 
 function targetsPanel(targets) {
   const p = state.profile;
   return `<div class="panel">
-    <div class="section-title"><h2>КБЖУ</h2><span>${targets.manual ? "Ручной режим" : `BMR ${round(targets.bmr)} ккал`}</span></div>
+    <div class="section-title"><h2>КБЖУ</h2><span>${!targets.complete ? "Заполните данные" : targets.manual ? "Ручной режим" : `BMR ${round(targets.bmr)} ккал`}</span></div>
     <div class="segmented">
       <label><input type="radio" name="targetMode" value="auto" ${p.targetMode !== "manual" ? "checked" : ""}>Автоматический расчёт</label>
       <label><input type="radio" name="targetMode" value="manual" ${p.targetMode === "manual" ? "checked" : ""}>Ручной режим</label>
@@ -1015,17 +1601,23 @@ function goalControls(p) {
 
 function targetCards(targets) {
   return `
-    ${smallStat("Калории", round(targets.calories))}
-    ${smallStat("Белки", `${round(targets.protein)} г`)}
-    ${smallStat("Жиры", `${round(targets.fat)} г`)}
-    ${smallStat("Углеводы", `${round(targets.carbs)} г`)}`;
+    ${smallStat("Калории", targetValue(targets.calories))}
+    ${smallStat("Белки", targetValue(targets.protein, "г"))}
+    ${smallStat("Жиры", targetValue(targets.fat, "г"))}
+    ${smallStat("Углеводы", targetValue(targets.carbs, "г"))}`;
 }
 
 function profileWaterPanel() {
-  return `<div class="panel">
-    <div class="section-title"><h2>Вода</h2><span>${round(waterGoal() / 1000, 1)} л в день</span></div>
-    <label class="check-row"><input name="waterManual" type="checkbox" ${state.settings.waterManual ? "checked" : ""}><span>Задать цель вручную</span></label>
-    <div class="field"><label>Цель воды, мл</label><input name="waterGoal" type="number" inputmode="numeric" value="${state.settings.waterGoal || ""}" placeholder="2200" enterkeyhint="done"></div>
+  const auto = !state.settings.waterManual;
+  return `<div class="panel" data-profile-water>
+    <div class="section-title"><h2>Вода</h2><span data-water-goal-label>${round(waterGoal() / 1000, 1)} л в день</span></div>
+    <label class="check-row"><input name="waterAuto" type="checkbox" ${auto ? "checked" : ""}><span>Автоматический расчёт</span></label>
+    <div class="field"><label>Своя цель воды, мл</label><input name="waterGoal" type="number" inputmode="numeric" value="${state.settings.waterGoal || ""}" placeholder="2200" enterkeyhint="done" ${auto ? "disabled" : ""}></div>
+    <div class="water-help">
+      <span data-water-mode>${auto ? "Автоматический расчёт" : "Ручной режим"}</span>
+      <p data-water-formula>${waterFormulaText()}</p>
+      <p data-water-range>${waterRangeText()}</p>
+    </div>
   </div>`;
 }
 
@@ -1059,13 +1651,24 @@ app.addEventListener("submit", (event) => {
   if (type === "entry") addEntry(form);
   if (type === "product") addProduct(form);
   if (type === "water") addWaterManual(form);
+  if (type === "water-history") saveWaterHistory(form);
   if (type === "profile") saveProfile(form);
   if (type === "weight") addWeight(form);
 });
 
 app.addEventListener("click", (event) => {
+  if (event.target.dataset.modalClose === "water") {
+    waterHistoryOpen = false;
+    render();
+    return;
+  }
   const button = event.target.closest("button");
   if (!button) return;
+  if (button.dataset.keyboardDone) {
+    blurActive();
+    setKeyboardMode(false);
+    return;
+  }
   if (button.dataset.screen) setScreen(button.dataset.screen);
   if (button.dataset.action === "prev-date") changeDate(-1);
   if (button.dataset.action === "next-date") changeDate(1);
@@ -1073,14 +1676,30 @@ app.addEventListener("click", (event) => {
     const form = button.closest("form");
     if (form) recalculateProfile(form);
   }
+  if (button.dataset.action === "add-weight") {
+    if (skipNextAddWeightClick) {
+      skipNextAddWeightClick = false;
+      return;
+    }
+    handleAddWeightButton(button);
+  }
   if (button.dataset.action === "close-entry") {
     entrySheetOpen = false;
+    render();
+  }
+  if (button.dataset.action === "water-history") {
+    waterHistoryOpen = true;
+    render();
+  }
+  if (button.dataset.action === "close-water-history") {
+    waterHistoryOpen = false;
     render();
   }
   if (button.dataset.openAdd) openAdd(button.dataset.openAdd);
   if (button.dataset.water) addWater(number(button.dataset.water));
   if (button.dataset.deleteEntry) deleteEntry(button.dataset.deleteEntry);
   if (button.dataset.deleteProduct) deleteProduct(button.dataset.deleteProduct);
+  if (button.dataset.deleteWater) deleteWaterEntry(button.dataset.deleteWater);
   if (button.dataset.range) {
     analyticsRange = button.dataset.range;
     render();
@@ -1091,6 +1710,13 @@ app.addEventListener("click", (event) => {
   }
   if (button.dataset.addPanel) {
     addPanelMode = button.dataset.addPanel;
+    entrySheetOpen = false;
+    render();
+  }
+  if (button.dataset.quickProduct) {
+    entryDraft.productId = button.dataset.quickProduct;
+    entrySheetOpen = true;
+    addPanelMode = "existing";
     render();
   }
   if (button.dataset.addMeal) {
@@ -1101,6 +1727,17 @@ app.addEventListener("click", (event) => {
     entryDraft.amount = Math.max(1, number(entryDraft.amount, 1) + number(button.dataset.pieceStep));
     render();
   }
+});
+
+app.addEventListener("pointerdown", (event) => {
+  const button = event.target.closest('button[data-action="add-weight"]');
+  if (!button) return;
+  event.preventDefault();
+  skipNextAddWeightClick = true;
+  handleAddWeightButton(button);
+  setTimeout(() => {
+    skipNextAddWeightClick = false;
+  }, 500);
 });
 
 app.addEventListener("change", (event) => {
@@ -1123,6 +1760,9 @@ app.addEventListener("change", (event) => {
     syncProfileFromForm(profileForm);
     render();
   }
+  if (profileForm && ["waterAuto", "activity"].includes(target.name)) {
+    updateProfileWaterFromForm(profileForm);
+  }
 });
 
 app.addEventListener("input", (event) => {
@@ -1140,7 +1780,14 @@ app.addEventListener("input", (event) => {
   }
   const entryForm = target.closest('form[data-form="entry"]');
   if (entryForm && target.name === "amount") entryDraft.amount = target.value;
+
+  const profileForm = target.closest('form[data-form="profile"]');
+  if (profileForm && ["weight", "waterGoal"].includes(target.name)) {
+    updateProfileWaterFromForm(profileForm);
+  }
 });
+
+setupKeyboardBehavior();
 
 bootstrap().catch((error) => {
   app.innerHTML = `<div class="boot-screen"><div class="brand-mark">80</div><div><strong>Не удалось запустить Eighty</strong><span>${escapeHtml(error.message)}</span></div></div>`;

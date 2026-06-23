@@ -156,7 +156,7 @@ function createDefaultState(user) {
   const today = new Date().toISOString().slice(0, 10);
 
   return {
-    version: 4,
+    version: 5,
     createdAt: new Date().toISOString(),
     telegram: {
       name: user.name,
@@ -165,21 +165,21 @@ function createDefaultState(user) {
     },
     profile: {
       name: user.name,
-      sex: "female",
-      age: 28,
-      height: 170,
-      weight: 75,
-      targetWeight: 65,
-      activity: "low",
+      sex: "",
+      age: "",
+      height: "",
+      weight: "",
+      targetWeight: "",
+      activity: "",
       goalMode: "loss",
       targetMode: "auto",
       deficitPercent: 15,
       surplusPercent: 10,
       manualTargets: {
-        calories: 1500,
-        protein: 100,
-        fat: 45,
-        carbs: 140
+        calories: "",
+        protein: "",
+        fat: "",
+        carbs: ""
       }
     },
     settings: {
@@ -190,7 +190,15 @@ function createDefaultState(user) {
     products: [],
     diary: { [today]: [] },
     water: { [today]: 0 },
-    weightLogs: [{ date: today, weight: 75 }]
+    waterHistory: { [today]: [] },
+    weightLogs: [],
+    stats: {
+      currentStreak: 0,
+      maxStreak: 0
+    },
+    achievements: {
+      unlocked: {}
+    }
   };
 }
 
