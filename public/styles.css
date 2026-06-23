@@ -11,7 +11,9 @@
   --green-soft: #e9f9f0;
   --danger: #ff3b30;
   --shadow: 0 14px 36px rgba(0, 0, 0, 0.07);
-  --radius: 18px;
+  --blue: #2f80ed;
+  --amber: #f2a93b;
+  --radius: 8px;
 }
 
 * {
@@ -20,6 +22,9 @@
 
 html {
   background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
 }
 
 body {
@@ -31,6 +36,8 @@ body {
   font-size: 15px;
   line-height: 1.35;
   letter-spacing: 0;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button,
@@ -83,7 +90,7 @@ button {
 .layout {
   width: min(920px, 100%);
   margin: 0 auto;
-  padding: 18px 16px 104px;
+  padding: 14px 14px 104px;
 }
 
 .topbar {
@@ -94,9 +101,26 @@ button {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 14px;
-  padding: 10px 0 18px;
+  min-height: 72px;
+  padding: 8px 0 14px;
   background: rgba(255, 255, 255, 0.92);
   backdrop-filter: blur(18px);
+}
+
+.date-only {
+  display: flex;
+  justify-content: center;
+}
+
+.date-only .date-switcher {
+  width: min(420px, 100%);
+}
+
+.empty-topbar {
+  min-height: 10px;
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
 }
 
 .brand {
@@ -112,7 +136,7 @@ button {
 
 .brand h1 {
   margin: 0;
-  font-size: 26px;
+  font-size: 25px;
   line-height: 1.05;
   font-weight: 800;
 }
@@ -121,7 +145,7 @@ button {
   max-width: 100%;
   margin: 4px 0 0;
   color: var(--muted);
-  font-size: clamp(11px, 3.2vw, 13px);
+  font-size: 13px;
   line-height: 1.25;
   white-space: normal;
 }
@@ -138,7 +162,7 @@ button {
 .chip-btn,
 .small-add {
   min-height: 38px;
-  border-radius: 14px;
+  border-radius: 8px;
   transition: transform 0.16s ease, background 0.16s ease, opacity 0.16s ease;
 }
 
@@ -153,7 +177,7 @@ button {
 .icon-btn.compact {
   width: 32px;
   min-height: 32px;
-  border-radius: 12px;
+  border-radius: 8px;
   color: var(--danger);
 }
 
@@ -202,7 +226,7 @@ button {
   place-items: center;
   padding: 0 10px;
   border: 0;
-  border-radius: 14px;
+  border-radius: 8px;
   background: var(--soft);
   color: var(--ink);
   font-weight: 700;
@@ -216,25 +240,25 @@ button {
   width: min(680px, calc(100% - 24px));
   transform: translateX(-50%);
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 4px;
-  padding: 7px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 3px;
+  padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: var(--shadow);
   backdrop-filter: blur(20px);
 }
 
 .tab {
-  min-height: 52px;
+  min-height: 50px;
   display: grid;
   place-items: center;
   gap: 3px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
 }
 
@@ -274,7 +298,7 @@ button {
 }
 
 .panel {
-  padding: 18px;
+  padding: 16px;
 }
 
 .section-title {
@@ -287,7 +311,7 @@ button {
 
 .section-title h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 19px;
   line-height: 1.2;
   font-weight: 800;
 }
@@ -301,16 +325,22 @@ button {
 
 .calories-card {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   align-items: center;
-  gap: 22px;
+  gap: 18px;
+}
+
+.calorie-left {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
 }
 
 .ring {
   --progress: 0;
   position: relative;
-  width: 148px;
-  height: 148px;
+  width: 142px;
+  height: 142px;
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -320,8 +350,8 @@ button {
 .ring::before {
   content: "";
   position: absolute;
-  width: 110px;
-  height: 110px;
+  width: 104px;
+  height: 104px;
   border-radius: 50%;
   background: #fff;
 }
@@ -334,7 +364,7 @@ button {
 }
 
 .ring-content strong {
-  font-size: 30px;
+  font-size: 29px;
   line-height: 1;
   font-weight: 850;
 }
@@ -344,12 +374,23 @@ button {
   font-size: 13px;
 }
 
-.calorie-details h2 {
-  margin: 0 0 14px;
-  font-size: 24px;
+.calorie-caption {
+  display: grid;
+  gap: 3px;
+  text-align: center;
 }
 
-.calorie-grid,
+.calorie-caption strong {
+  font-size: 20px;
+  font-weight: 850;
+}
+
+.calorie-caption span {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
 .target-grid,
 .profile-meta,
 .weight-grid {
@@ -372,7 +413,7 @@ button {
   display: grid;
   gap: 4px;
   padding: 13px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: var(--soft);
 }
 
@@ -383,7 +424,7 @@ button {
 
 .mini-stat strong {
   overflow-wrap: anywhere;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 800;
 }
 
@@ -449,7 +490,7 @@ button {
 .empty,
 .empty-line {
   padding: 14px;
-  border-radius: 16px;
+  border-radius: 8px;
   background: var(--soft);
   color: var(--muted);
   text-align: center;
@@ -479,6 +520,36 @@ button {
   height: 100%;
   border-radius: inherit;
   background: var(--green);
+}
+
+.macro-summary {
+  display: grid;
+  gap: 15px;
+}
+
+.macro-line {
+  display: grid;
+  gap: 8px;
+}
+
+.macro-line > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 800;
+}
+
+.macro-line span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.macro-line:nth-child(1) .progress > i {
+  background: var(--blue);
+}
+
+.macro-line:nth-child(2) .progress > i {
+  background: var(--amber);
 }
 
 .chip-row {
@@ -535,7 +606,7 @@ button {
   min-height: 46px;
   padding: 0 13px;
   border: 1px solid var(--line);
-  border-radius: 15px;
+  border-radius: 8px;
   background: var(--soft);
   color: var(--ink);
   outline: none;
@@ -551,6 +622,21 @@ button {
 .item-card {
   padding: 14px;
   box-shadow: none;
+}
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quick-btn {
+  min-height: 44px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: var(--ink);
+  color: #fff;
+  font-weight: 800;
 }
 
 .center-add {
@@ -571,7 +657,7 @@ button {
   height: 82px;
   display: grid;
   place-items: center;
-  border-radius: 26px;
+  border-radius: 18px;
   background: var(--green);
   color: #fff;
   box-shadow: 0 18px 34px rgba(40, 199, 111, 0.28);
@@ -587,21 +673,9 @@ button {
   display: none;
 }
 
-.split-controls {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+.control-group,
+.manual-grid {
   margin-top: 12px;
-}
-
-.hint,
-.formula {
-  margin: 12px 0 0;
-}
-
-.formula {
-  padding-top: 12px;
-  border-top: 1px solid var(--line);
 }
 
 .check-row {
@@ -644,11 +718,57 @@ button {
 }
 
 .chart .area {
-  fill: rgba(40, 199, 111, 0.13);
+  fill: url(#weightFill);
 }
 
 .chart .dot {
   fill: var(--green-dark);
+  stroke: #fff;
+  stroke-width: 3;
+}
+
+.chart .grid-line {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.chart .target-line {
+  stroke: var(--amber);
+  stroke-width: 2;
+  stroke-dasharray: 7 7;
+}
+
+.counter {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 52px;
+  align-items: center;
+  min-height: 52px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--soft);
+}
+
+.counter strong {
+  text-align: center;
+  font-size: 22px;
+  font-weight: 850;
+}
+
+.counter-btn {
+  height: 52px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 24px;
+  font-weight: 850;
+}
+
+.cooked-field {
+  display: none;
+}
+
+.cooked-mode .cooked-field {
+  display: grid;
 }
 
 .toast {
@@ -685,13 +805,12 @@ button {
   }
 
   .calories-card {
-    grid-template-columns: 1fr;
-    justify-items: center;
-    text-align: center;
+    grid-template-columns: 1fr minmax(0, 1fr);
+    text-align: left;
   }
 
-  .calorie-details {
-    width: 100%;
+  .quick-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .profile-meta,
@@ -730,9 +849,7 @@ button {
     padding: 16px;
   }
 
-  .calorie-grid,
   .form-grid,
-  .split-controls,
   .profile-meta,
   .target-grid,
   .weight-grid,
@@ -741,13 +858,22 @@ button {
   }
 
   .ring {
-    width: 138px;
-    height: 138px;
+    width: 132px;
+    height: 132px;
   }
 
   .ring::before {
-    width: 102px;
-    height: 102px;
+    width: 96px;
+    height: 96px;
+  }
+
+  .calories-card {
+    grid-template-columns: 1fr;
+    justify-items: stretch;
+  }
+
+  .macro-summary {
+    width: 100%;
   }
 
   .meal-header,
