@@ -87,8 +87,9 @@ let saveTimer = null;
 let analyticsRange = "week";
 let analyticsDate = todayIso();
 let favoritesQuery = "";
-let entryDraft = { meal: "breakfast", productId: "", amount: "" };
-let entrySheetOpen = false;
+let favoritesSort = "az";
+let entryDraft = { meal: "breakfast", items: {} };
+let mealCartOpen = false;
 let addPanelMode = "existing";
 let waterHistoryOpen = false;
 let profileDetailsOpen = false;
@@ -678,27 +679,9 @@ function earnedAchievementCount() {
   return achievementDefinitions().filter((item) => isAchievementUnlocked(item.id)).length;
 }
 
-function productUsage() {
-  const counts = {};
-  for (const entries of Object.values(state.diary || {})) {
-    for (const item of entries || []) counts[item.productId] = (counts[item.productId] || 0) + 1;
-  }
-  return counts;
-}
-
-function frequentProducts() {
-  const counts = productUsage();
-  return [...state.products]
-    .map((product) => ({ ...product, uses: counts[product.id] || 0 }))
-    .filter((product) => product.uses > 0)
-    .sort((a, b) => b.uses - a.uses || a.name.localeCompare(b.name))
-    .slice(0, 10);
-}
-
 function setScreen(screen) {
   activeScreen = screen;
   closeModal();
-  if (screen !== "diary") entrySheetOpen = false;
   if (screen === "add" && !state.products.length) addPanelMode = "new";
   render();
 }
@@ -706,15 +689,8 @@ function setScreen(screen) {
 function openAdd(meal = "breakfast") {
   activeScreen = "add";
   entryDraft.meal = meal;
-  entryDraft.productId ||= state.products[0]?.id || "";
-  entryDraft.amount = selectedProduct()?.type === "piece" ? 1 : "";
-  entrySheetOpen = false;
   addPanelMode = state.products.length ? "existing" : "new";
   render();
-}
-
-function selectedProduct() {
-  return state.products.find((item) => item.id === entryDraft.productId) || state.products[0];
 }
 
 function changeDate(delta) {
@@ -740,32 +716,103 @@ function closeModal(name) {
   if (!name || name === "earned-achievements") earnedAchievementsOpen = false;
 }
 
+function ensureEntryDraft() {
+  entryDraft ||= {};
+  entryDraft.meal ||= "breakfast";
+  entryDraft.items ||= {};
+  for (const id of Object.keys(entryDraft.items)) {
+    if (!state.products.find((product) => product.id === id)) delete entryDraft.items[id];
+  }
+}
+
+function sortedProducts(products = state.products, direction = "az") {
+  return [...products].sort((a, b) => direction === "za"
+    ? b.name.localeCompare(a.name, "ru")
+    : a.name.localeCompare(b.name, "ru"));
+}
+
+function selectedMealItems() {
+  ensureEntryDraft();
+  return sortedProducts(state.products)
+    .filter((product) => hasDraftItem(product.id))
+    .map((product) => ({ product, amount: entryDraft.items[product.id] }));
+}
+
+function hasDraftItem(id) {
+  return Object.prototype.hasOwnProperty.call(entryDraft.items, id);
+}
+
+function defaultProductAmount(product) {
+  return product?.type === "piece" ? 1 : "";
+}
+
+function productAmountLabel(product) {
+  if (product.type === "piece") return "Количество штук";
+  if (product.type === "cooked") return "Сколько граммов готового продукта съедено";
+  return "Вес, г";
+}
+
+function productAmountPlaceholder(product) {
+  return product.type === "piece" ? "2" : "180";
+}
+
+function formatCartAmount(product, amount) {
+  const unit = product.type === "piece" ? "шт" : "г";
+  if (number(amount, 0) <= 0) return `— ${unit}`;
+  return `${round(amount, 1)} ${unit}`;
+}
+
+function mealButtonLabel(meal) {
+  return ({
+    breakfast: "Добавить в завтрак",
+    lunch: "Добавить в обед",
+    dinner: "Добавить в ужин",
+    snacks: "Добавить в перекус"
+  })[meal] || "Добавить в рацион";
+}
+
+function toggleProduct(id) {
+  ensureEntryDraft();
+  const product = state.products.find((item) => item.id === id);
+  if (!product) return;
+  if (hasDraftItem(id)) delete entryDraft.items[id];
+  else entryDraft.items[id] = defaultProductAmount(product);
+  mealCartOpen = Object.keys(entryDraft.items).length > 0;
+  render();
+}
+
 function addEntry(form) {
-  const data = new FormData(form);
-  const product = state.products.find((item) => item.id === data.get("productId"));
-  if (!product) return toast("Сначала добавьте продукт");
+  ensureEntryDraft();
+  const data = form ? new FormData(form) : null;
+  const meal = data?.get("meal") || entryDraft.meal;
+  const selected = selectedMealItems()
+    .map(({ product, amount }) => ({
+      product,
+      amount: product.type === "piece"
+        ? Math.max(1, number(amount, 1))
+        : number(amount, 0)
+    }))
+    .filter((item) => item.amount > 0);
 
-  const amount = product.type === "piece"
-    ? Math.max(1, number(data.get("amount"), 1))
-    : number(data.get("amount"), 0);
-  if (amount <= 0) return toast("Введите количество");
+  if (!selected.length) return toast("Выберите продукты и укажите количество");
 
-  entriesForDate().push({
-    id: uid(),
-    meal: data.get("meal"),
-    productId: product.id,
-    label: product.name,
-    amount,
-    unit: product.type === "piece" ? "шт." : "г",
-    nutrients: calcProduct(product, amount)
-  });
-  entryDraft = { meal: data.get("meal"), productId: product.id, amount: product.type === "piece" ? 1 : "" };
-  entrySheetOpen = false;
-  activeScreen = "diary";
+  for (const { product, amount } of selected) {
+    entriesForDate().push({
+      id: uid(),
+      meal,
+      productId: product.id,
+      label: product.name,
+      amount,
+      unit: product.type === "piece" ? "шт." : "г",
+      nutrients: calcProduct(product, amount)
+    });
+  }
+  entryDraft = { meal, items: {} };
+  mealCartOpen = false;
   blurActive();
   persist();
   render();
-  toast("Добавлено");
+  toast("✅ Добавлено в рацион");
 }
 
 function deleteEntry(id) {
@@ -789,8 +836,9 @@ function addProduct(form) {
   };
   if (!product.name) return toast("Введите название");
   state.products.unshift(product);
-  entryDraft.productId = product.id;
-  entryDraft.amount = product.type === "piece" ? 1 : "";
+  ensureEntryDraft();
+  entryDraft.items[product.id] = defaultProductAmount(product);
+  mealCartOpen = true;
   addPanelMode = "existing";
   blurActive();
   persist();
@@ -800,7 +848,8 @@ function addProduct(form) {
 
 function deleteProduct(id) {
   state.products = state.products.filter((item) => item.id !== id);
-  if (entryDraft.productId === id) entryDraft.productId = state.products[0]?.id || "";
+  ensureEntryDraft();
+  delete entryDraft.items[id];
   persist();
   render();
 }
@@ -990,15 +1039,15 @@ function handleAddWeightButton(button) {
 
 function filteredFavorites() {
   const query = favoritesQuery.trim().toLowerCase();
-  if (!query) return state.products;
-  return state.products.filter((item) => item.name.toLowerCase().includes(query));
+  const products = query
+    ? state.products.filter((item) => item.name.toLowerCase().includes(query))
+    : state.products;
+  return sortedProducts(products, favoritesSort);
 }
 
 function render() {
   ensureShape();
-  if (!state.products.find((item) => item.id === entryDraft.productId)) {
-    entryDraft.productId = state.products[0]?.id || "";
-  }
+  ensureEntryDraft();
   const targets = calcTargets();
   const consumed = sumNutrients(entriesForDate());
 
@@ -1051,7 +1100,6 @@ function screenDiary(targets, consumed) {
       ${activitySummaryCard()}
       ${energyCard(targets, consumed, remaining, calorieProgress)}
       ${mealsSection()}
-      ${entrySheetOpen ? entrySheet() : ""}
       ${waterSection()}
     </div>
   </section>`;
@@ -1374,27 +1422,6 @@ function statCard(label, value) {
   return `<div class="stat-card"><span>${label}</span><strong>${value}</strong></div>`;
 }
 
-function entrySheet() {
-  const product = selectedProduct();
-  const isPiece = product?.type === "piece";
-  if (isPiece) entryDraft.amount = Math.max(1, number(entryDraft.amount, 1));
-  return `<div class="panel entry-sheet">
-    <div class="sheet-head">
-      <div>
-        <span>Добавить в рацион</span>
-        <h3>${labels.meals[entryDraft.meal]?.label || "Приём пищи"}</h3>
-      </div>
-      <button class="icon-btn compact neutral" data-action="close-entry" title="Закрыть">×</button>
-    </div>
-    <form class="form-grid" data-form="entry">
-      <input type="hidden" name="meal" value="${entryDraft.meal}">
-      <div class="field full"><label>Продукт</label><select name="productId" data-product-select>${productOptions(selectedProduct()?.id)}</select></div>
-      ${isPiece ? pieceCounter(entryDraft.amount) : amountField()}
-      <div class="field full"><button class="primary-btn" type="submit">Готово</button></div>
-    </form>
-  </div>`;
-}
-
 function screenAdd() {
   return `<section class="screen ${activeScreen === "add" ? "active" : ""}">
     <div class="stack">
@@ -1406,15 +1433,12 @@ function screenAdd() {
         <button class="${addPanelMode === "existing" ? "active" : ""}" data-add-panel="existing">В рацион</button>
         <button class="${addPanelMode === "new" ? "active" : ""}" data-add-panel="new">Новый продукт</button>
       </div>
-      ${entrySheetOpen ? entrySheet() : addPanelMode === "new" ? manualProductForm() : existingProductPanel()}
+      ${addPanelMode === "new" ? manualProductForm() : existingProductPanel()}
     </div>
   </section>`;
 }
 
 function existingProductPanel() {
-  const product = selectedProduct();
-  const isPiece = product?.type === "piece";
-  if (isPiece) entryDraft.amount = Math.max(1, number(entryDraft.amount, 1));
   if (!state.products.length) {
     return `<div class="big-empty">
       <div>
@@ -1424,32 +1448,51 @@ function existingProductPanel() {
       </div>
     </div>`;
   }
-  return `<div class="panel">
-    ${frequentProductsSection()}
+  const products = sortedProducts(state.products);
+  return `<form class="add-meal-flow" data-form="entry">
     <div class="segmented meal-segments">
-      ${Object.entries(labels.meals).map(([id, data]) => `<button class="${entryDraft.meal === id ? "active" : ""}" data-add-meal="${id}">${data.short}</button>`).join("")}
+      ${Object.entries(labels.meals).map(([id, data]) => `<button class="${entryDraft.meal === id ? "active" : ""}" type="button" data-add-meal="${id}">${data.short}</button>`).join("")}
     </div>
-    <form class="form-grid add-entry-form" data-form="entry">
-      <input type="hidden" name="meal" value="${entryDraft.meal}">
-      <div class="field full"><label>Продукт</label><select name="productId" data-product-select>${productOptions(selectedProduct()?.id)}</select></div>
-      ${isPiece ? pieceCounter(entryDraft.amount) : amountField()}
-      <div class="field full"><button class="primary-btn" type="submit">Готово</button></div>
-    </form>
+    <input type="hidden" name="meal" value="${entryDraft.meal}">
+    ${mealCartPanel()}
+    <div class="product-choice-list">
+      ${products.map(productChoiceCard).join("")}
+    </div>
+    <button class="primary-btn full-btn add-meal-submit" type="submit" ${selectedMealItems().length ? "" : "disabled"}>${mealButtonLabel(entryDraft.meal)}</button>
+  </form>`;
+}
+
+function mealCartPanel() {
+  const items = selectedMealItems();
+  return `<div class="meal-cart ${mealCartOpen ? "open" : ""}">
+    <button class="meal-cart-toggle" type="button" data-action="toggle-cart">
+      <span>Выбрано продуктов: ${items.length}</span>
+      <strong>${labels.meals[entryDraft.meal]?.short || "Приём пищи"}</strong>
+    </button>
+    ${mealCartOpen ? `<div class="meal-cart-list">
+      ${items.length
+        ? items.map(({ product, amount }) => `<div><span>${escapeHtml(product.name)}</span><b>${formatCartAmount(product, amount)}</b></div>`).join("")
+        : `<div class="empty-line">Выберите продукты для текущего приёма пищи</div>`}
+    </div>` : ""}
   </div>`;
 }
 
-function frequentProductsSection() {
-  const products = frequentProducts();
-  if (!products.length) return "";
-  return `<div class="frequent-block">
-    <div class="section-title compact-title"><h2>Часто используемые</h2><span>ТОП-${products.length}</span></div>
-    <div class="frequent-list">
-      ${products.map((product) => `<button type="button" class="frequent-chip" data-quick-product="${product.id}">
+function productChoiceCard(product) {
+  const selected = hasDraftItem(product.id);
+  const amount = entryDraft.items[product.id];
+  return `<article class="product-choice ${selected ? "selected" : ""}">
+    <button class="product-choice-main" type="button" data-toggle-product="${product.id}">
+      <span>
         <strong>${escapeHtml(product.name)}</strong>
-        <span>${product.uses} раз</span>
-      </button>`).join("")}
-    </div>
-  </div>`;
+        <em>${labels.productTypes[product.type]}</em>
+      </span>
+      <b>${round(product.calories)} ккал</b>
+    </button>
+    ${selected ? `<div class="product-choice-amount">
+      <label for="amount-${product.id}">${productAmountLabel(product)}</label>
+      <input id="amount-${product.id}" data-cart-amount="${product.id}" type="number" min="1" step="${product.type === "piece" ? "1" : "0.1"}" inputmode="${product.type === "piece" ? "numeric" : "decimal"}" enterkeyhint="next" placeholder="${productAmountPlaceholder(product)}" value="${escapeHtml(amount)}">
+    </div>` : ""}
+  </article>`;
 }
 
 function manualProductForm() {
@@ -1468,28 +1511,18 @@ function manualProductForm() {
   </div>`;
 }
 
-function amountField() {
-  return `<div class="field full" data-amount-wrap><label>Вес, г</label><input name="amount" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="done" placeholder="Введите вес" value="${entryDraft.amount || ""}"></div>`;
-}
-
-function pieceCounter(value) {
-  const amount = Math.max(1, number(value, 1));
-  return `<div class="field full" data-amount-wrap><label>Количество</label>
-    <div class="counter">
-      <button type="button" class="counter-btn" data-piece-step="-1">−</button>
-      <strong>${amount}</strong>
-      <button type="button" class="counter-btn" data-piece-step="1">+</button>
-      <input type="hidden" name="amount" value="${amount}">
-    </div>
-  </div>`;
-}
-
 function screenFavorites() {
   const products = filteredFavorites();
   return `<section class="screen ${activeScreen === "favorites" ? "active" : ""}">
     <div class="stack">
       <header class="screen-header"><h1>Избранное</h1><p>Ваш личный каталог продуктов</p></header>
-      <input class="search-input" data-favorites-query value="${escapeHtml(favoritesQuery)}" placeholder="Поиск">
+      <div class="favorites-tools">
+        <input class="search-input" data-favorites-query value="${escapeHtml(favoritesQuery)}" placeholder="Поиск">
+        <div class="segmented sort-segments">
+          <button class="${favoritesSort === "az" ? "active" : ""}" type="button" data-favorites-sort="az">А-Я</button>
+          <button class="${favoritesSort === "za" ? "active" : ""}" type="button" data-favorites-sort="za">Я-А</button>
+        </div>
+      </div>
       <div class="list" data-favorites-list>${products.length ? products.map(productRow).join("") : `<div class="empty big-empty">Пока ничего не добавлено.</div>`}</div>
     </div>
   </section>`;
@@ -1506,9 +1539,16 @@ function productRow(product) {
 }
 
 function screenProfile(targets) {
+  const telegramId = state.telegram.telegramId || currentUser.telegramId || "—";
   return `<section class="screen ${activeScreen === "profile" ? "active" : ""}">
     <div class="stack">
-      <header class="screen-header profile-title"><span>ВАШИ НАСТРОЙКИ</span><h1>Профиль</h1></header>
+      <header class="screen-header profile-title">
+        <div class="profile-title-row">
+          <span>ВАШИ НАСТРОЙКИ</span>
+          <b>ID ${escapeHtml(telegramId)}</b>
+        </div>
+        <h1>Профиль</h1>
+      </header>
       ${profileCard(targets)}
       <div class="profile-actions panel">
         <button class="secondary-btn" type="button" data-action="profile-details">Основные данные</button>
@@ -1529,7 +1569,6 @@ function profileCard(targets) {
   const name = currentUser.name || state.profile.name || "Пользователь";
   const photo = currentUser.photoUrl || state.telegram.photoUrl;
   const goal = state.profile.targetMode === "manual" ? "Ручной КБЖУ" : labels.goals[state.profile.goalMode];
-  const telegramId = state.telegram.telegramId || currentUser.telegramId || "—";
   const current = currentWeight();
   const start = startWeight();
   const target = number(state.profile.targetWeight);
@@ -1543,7 +1582,6 @@ function profileCard(targets) {
         <h2>${escapeHtml(name)}</h2>
         <p>Текущая цель: ${goal}</p>
         <p>Дневная цель: ${targetValue(targets.calories, "ккал")}</p>
-        <p>Telegram ID: ${escapeHtml(telegramId)}</p>
       </div>
     </div>
     <div class="weight-goal-grid">
@@ -1764,12 +1802,6 @@ function smallStat(label, value) {
   return `<div class="mini-stat"><span>${label}</span><strong>${value}</strong></div>`;
 }
 
-function productOptions(selected, products = state.products) {
-  return products.length
-    ? products.map((item) => `<option value="${item.id}" ${item.id === selected ? "selected" : ""}>${escapeHtml(item.name)}</option>`).join("")
-    : `<option value="">Нет продуктов</option>`;
-}
-
 function option(value, label, selected) {
   return `<option value="${value}" ${String(value) === String(selected) ? "selected" : ""}>${label}</option>`;
 }
@@ -1829,10 +1861,6 @@ app.addEventListener("click", (event) => {
     }
     handleAddWeightButton(button);
   }
-  if (button.dataset.action === "close-entry") {
-    entrySheetOpen = false;
-    render();
-  }
   if (button.dataset.action === "water-history") {
     waterHistoryOpen = true;
     render();
@@ -1889,21 +1917,19 @@ app.addEventListener("click", (event) => {
   }
   if (button.dataset.addPanel) {
     addPanelMode = button.dataset.addPanel;
-    entrySheetOpen = false;
     render();
   }
-  if (button.dataset.quickProduct) {
-    entryDraft.productId = button.dataset.quickProduct;
-    entrySheetOpen = true;
-    addPanelMode = "existing";
+  if (button.dataset.action === "toggle-cart") {
+    mealCartOpen = !mealCartOpen;
     render();
   }
+  if (button.dataset.toggleProduct) toggleProduct(button.dataset.toggleProduct);
   if (button.dataset.addMeal) {
     entryDraft.meal = button.dataset.addMeal;
     render();
   }
-  if (button.dataset.pieceStep) {
-    entryDraft.amount = Math.max(1, number(entryDraft.amount, 1) + number(button.dataset.pieceStep));
+  if (button.dataset.favoritesSort) {
+    favoritesSort = button.dataset.favoritesSort;
     render();
   }
 });
@@ -1922,14 +1948,7 @@ app.addEventListener("pointerdown", (event) => {
 app.addEventListener("change", (event) => {
   const target = event.target;
   const entryForm = target.closest('form[data-form="entry"]');
-  if (entryForm && target.name === "productId") {
-    const data = new FormData(entryForm);
-    entryDraft.productId = data.get("productId") || entryDraft.productId;
-    const product = selectedProduct();
-    entryDraft.amount = product?.type === "piece" ? 1 : "";
-    render();
-    return;
-  }
+  if (entryForm && target.dataset.cartAmount) return;
 
   const productForm = target.closest('form[data-form="product"]');
   if (productForm && target.name === "type") productForm.classList.toggle("cooked-mode", target.value === "cooked");
@@ -1968,7 +1987,14 @@ app.addEventListener("input", (event) => {
     return;
   }
   const entryForm = target.closest('form[data-form="entry"]');
-  if (entryForm && target.name === "amount") entryDraft.amount = target.value;
+  if (entryForm && target.dataset.cartAmount) {
+    entryDraft.items[target.dataset.cartAmount] = target.value;
+    const cart = app.querySelector(".meal-cart");
+    if (cart && mealCartOpen) cart.outerHTML = mealCartPanel();
+    const submit = app.querySelector(".add-meal-submit");
+    if (submit) submit.disabled = selectedMealItems().length === 0;
+    return;
+  }
 
   const profileForm = target.closest('form[data-form="profile"]');
   if (profileForm && ["weight", "waterGoal"].includes(target.name)) {
