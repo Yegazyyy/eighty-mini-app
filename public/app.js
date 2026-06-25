@@ -22,6 +22,81 @@ const activityFactors = {
   veryHigh: 1.9
 };
 
+const eightyFoodCategories = [
+  {
+    id: "vegetables",
+    icon: "🥬",
+    label: "Овощи",
+    products: [
+      ["cucumber", "Огурец", 15, 0.7, 0.1, 3.6],
+      ["tomato", "Помидор", 18, 0.9, 0.2, 3.9],
+      ["potato", "Картофель", 77, 2.0, 0.1, 17.5],
+      ["carrot", "Морковь", 41, 0.9, 0.2, 9.6],
+      ["onion", "Лук репчатый", 40, 1.1, 0.1, 9.3],
+      ["white-cabbage", "Капуста белокочанная", 25, 1.3, 0.1, 5.8],
+      ["bell-pepper", "Болгарский перец", 31, 1.0, 0.3, 6.0],
+      ["zucchini", "Кабачок", 24, 0.6, 0.3, 4.6],
+      ["beetroot", "Свёкла", 43, 1.6, 0.2, 9.6],
+      ["broccoli", "Брокколи", 34, 2.8, 0.4, 6.6],
+      ["cauliflower", "Цветная капуста", 25, 1.9, 0.3, 5.0],
+      ["radish", "Редис", 16, 0.7, 0.1, 3.4]
+    ]
+  },
+  {
+    id: "fruits",
+    icon: "🍎",
+    label: "Фрукты",
+    products: [
+      ["apple", "Яблоко", 52, 0.3, 0.2, 13.8],
+      ["banana", "Банан", 89, 1.1, 0.3, 22.8],
+      ["pear", "Груша", 57, 0.4, 0.1, 15.2],
+      ["orange", "Апельсин", 47, 0.9, 0.1, 11.8],
+      ["mandarin", "Мандарин", 53, 0.8, 0.3, 13.3],
+      ["kiwi", "Киви", 61, 1.1, 0.5, 14.7],
+      ["grapes", "Виноград", 69, 0.7, 0.2, 18.1],
+      ["lemon", "Лимон", 29, 1.1, 0.3, 9.3],
+      ["peach", "Персик", 39, 0.9, 0.3, 9.5],
+      ["apricot", "Абрикос", 48, 1.4, 0.4, 11.1],
+      ["watermelon", "Арбуз", 30, 0.6, 0.2, 7.6],
+      ["melon", "Дыня", 34, 0.8, 0.2, 8.2]
+    ]
+  },
+  {
+    id: "eggs",
+    icon: "🥚",
+    label: "Яйца",
+    products: [
+      ["chicken-egg", "Яйцо куриное", 143, 12.6, 9.5, 0.7],
+      ["quail-egg", "Яйцо перепелиное", 158, 13.1, 11.1, 0.4]
+    ]
+  },
+  {
+    id: "mushrooms",
+    icon: "🍄",
+    label: "Грибы",
+    products: [
+      ["champignon", "Шампиньоны", 22, 3.1, 0.3, 3.3],
+      ["oyster-mushroom", "Вешенки", 33, 3.3, 0.4, 6.1],
+      ["porcini", "Белые грибы", 34, 3.7, 1.7, 1.1],
+      ["chanterelle", "Лисички", 32, 1.5, 1.0, 3.1]
+    ]
+  }
+];
+
+const eightyFoods = eightyFoodCategories.flatMap((category) => category.products.map(([id, name, calories, protein, fat, carbs]) => ({
+  id: `eighty-${id}`,
+  sourceId: `eighty-${id}`,
+  categoryId: category.id,
+  categoryLabel: category.label,
+  categoryIcon: category.icon,
+  name,
+  type: "weight",
+  calories,
+  protein,
+  fat,
+  carbs
+})));
+
 const labels = {
   activities: {
     minimal: "Минимальная",
@@ -33,7 +108,8 @@ const labels = {
   goals: {
     loss: "Похудение",
     maintain: "Поддержание",
-    gain: "Набор"
+    gain: "Набор массы",
+    diary: "Просто вести дневник"
   },
   meals: {
     breakfast: {
@@ -72,7 +148,7 @@ const icons = {
   diary: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="17" rx="3"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>`,
   analytics: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-5 4 3 5-7"/></svg>`,
   add: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14"/><path d="M5 12h14"/></svg>`,
-  favorite: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg>`,
+  favorite: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg>`,
   profile: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>`,
   prev: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m15 18-6-6 6-6"/></svg>`,
   next: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></svg>`,
@@ -88,17 +164,35 @@ let analyticsRange = "week";
 let analyticsDate = todayIso();
 let favoritesQuery = "";
 let favoritesSort = "az";
+let favoritesPage = "home";
+let favoritesEightyCategoryId = "";
+let favoritesEightyQuery = "";
+let onboardingStep = 1;
+let onboardingDraft = null;
+let libraryEditor = null;
+let deleteConfirm = null;
 let entryDraft = { meal: "breakfast", items: {} };
 let mealCartOpen = false;
 let addPanelMode = "existing";
+let addPage = "home";
+let addFoodSource = "mine";
+let addFoodQuery = "";
+let eightyCategoryId = "";
+let eightyFoodDialog = null;
+let eightyImport = { items: {}, query: "" };
+let dishBuilder = null;
+let ingredientPicker = { source: "mine", query: "", categoryId: "", items: {} };
 let waterHistoryOpen = false;
 let profileDetailsOpen = false;
+let nutritionInfoOpen = false;
 let weightHistoryOpen = false;
+let weightEditor = null;
+let accountDeleteOpen = false;
+let accountDeleteBusy = false;
 let achievementsOpen = false;
 let earnedAchievementsOpen = false;
 let keyboardBaseHeight = window.visualViewport?.height || window.innerHeight;
 let keyboardTimer = null;
-let skipNextAddWeightClick = false;
 
 const formControlSelector = 'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), textarea, select';
 
@@ -200,6 +294,8 @@ function mergeState(serverState, localState) {
     profile: { ...(serverState.profile || {}), ...(localState.profile || {}) },
     settings: { ...(serverState.settings || {}), ...(localState.settings || {}) },
     products: localState.products || serverState.products || [],
+    dishes: localState.dishes || serverState.dishes || [],
+    eightyOverrides: { ...(serverState.eightyOverrides || {}), ...(localState.eightyOverrides || {}) },
     diary: { ...(serverState.diary || {}), ...(localState.diary || {}) },
     water: { ...(serverState.water || {}), ...(localState.water || {}) },
     waterHistory: { ...(serverState.waterHistory || {}), ...(localState.waterHistory || {}) },
@@ -213,8 +309,10 @@ function ensureShape() {
   state ||= {};
   state.version = 5;
   state.createdAt ||= new Date().toISOString();
+  state.onboardingCompleted = Boolean(state.onboardingCompleted);
+  const completed = state.onboardingCompleted;
   state.profile = {
-    name: currentUser.name || "",
+    name: completed ? currentUser.name || "" : "",
     sex: "",
     age: "",
     height: "",
@@ -250,6 +348,17 @@ function ensureShape() {
     ...(state.settings || {})
   };
   state.products ||= [];
+  state.eightyOverrides ||= {};
+  state.dishes ||= [];
+  state.dishes = state.dishes.map((dish) => ({
+    ...dish,
+    id: dish.id || uid(),
+    ingredients: (dish.ingredients || []).map((ingredient) => ({
+      id: ingredient.id || uid(),
+      productId: ingredient.productId || "",
+      amount: optionalNumber(ingredient.amount)
+    }))
+  }));
   state.diary ||= {};
   state.water ||= {};
   state.waterHistory ||= {};
@@ -261,6 +370,16 @@ function ensureShape() {
       id: item.id || uid(),
       createdAt: !item.createdAt || item.createdAt === `${item.date}T12:00:00` ? `${item.date}T00:00:00` : item.createdAt
     }));
+  if (!state.weightLogs.length && number(state.profile.weight) > 0) {
+    const date = toIsoDate(new Date(state.createdAt || Date.now()));
+    state.weightLogs.push({
+      id: uid(),
+      date,
+      weight: number(state.profile.weight),
+      createdAt: `${date}T00:00:00`
+    });
+  }
+  state.profile.weight = number([...state.weightLogs].sort((a, b) => weightEntryTimestamp(a) - weightEntryTimestamp(b)).at(-1)?.weight) || "";
   state.stats = {
     currentStreak: 0,
     maxStreak: 0,
@@ -272,29 +391,33 @@ function ensureShape() {
   };
   state.achievements.unlocked ||= {};
   state.telegram = {
-    name: currentUser.name || "",
-    telegramId: currentUser.telegramId || "",
-    photoUrl: currentUser.photoUrl || "",
+    name: completed ? currentUser.name || "" : "",
+    telegramId: completed ? currentUser.telegramId || "" : "",
+    photoUrl: completed ? currentUser.photoUrl || "" : "",
     ...(state.telegram || {})
   };
-  if (currentUser.telegramId) state.telegram.telegramId = currentUser.telegramId;
-  if (currentUser.name) state.telegram.name = currentUser.name;
-  if (currentUser.photoUrl) state.telegram.photoUrl = currentUser.photoUrl;
-  state.diary[selectedDate] ||= [];
-  state.water[selectedDate] ||= 0;
-  for (const [date, total] of Object.entries(state.water)) {
-    if (number(total) > 0 && !state.waterHistory[date]?.length) {
-      state.waterHistory[date] = [{
-        id: uid(),
-        amount: number(total),
-        createdAt: `${date}T12:00:00`,
-        migrated: true
-      }];
+  if (!completed) {
+    state.telegram = { name: "", telegramId: "", photoUrl: "" };
+  } else {
+    if (currentUser.telegramId) state.telegram.telegramId = currentUser.telegramId;
+    if (currentUser.name) state.telegram.name = currentUser.name;
+    if (currentUser.photoUrl) state.telegram.photoUrl = currentUser.photoUrl;
+    state.diary[selectedDate] ||= [];
+    state.water[selectedDate] ||= 0;
+    for (const [date, total] of Object.entries(state.water)) {
+      if (number(total) > 0 && !state.waterHistory[date]?.length) {
+        state.waterHistory[date] = [{
+          id: uid(),
+          amount: number(total),
+          createdAt: `${date}T12:00:00`,
+          migrated: true
+        }];
+      }
     }
-  }
-  state.waterHistory[selectedDate] ||= [];
-  for (const date of new Set([...Object.keys(state.water), ...Object.keys(state.waterHistory)])) {
-    state.water[date] = waterTotal(date);
+    state.waterHistory[selectedDate] ||= [];
+    for (const date of new Set([...Object.keys(state.water), ...Object.keys(state.waterHistory)])) {
+      state.water[date] = waterTotal(date);
+    }
   }
   updateStats();
   reconcileWeightAchievements();
@@ -302,7 +425,7 @@ function ensureShape() {
 }
 
 function persist(options = {}) {
-  ensureShape();
+  if (!options.skipEnsure) ensureShape();
   localStorage.setItem(stateKey, JSON.stringify(state));
   for (const key of legacyStateKeys) localStorage.removeItem(key);
   clearTimeout(saveTimer);
@@ -319,7 +442,7 @@ function persist(options = {}) {
     }).catch(() => {});
   };
 
-  if (options.immediate) sync();
+  if (options.immediate) return sync();
   else saveTimer = setTimeout(sync, 300);
 }
 
@@ -370,6 +493,11 @@ function formatDaySubtitle(value) {
 
 function formatDate(value) {
   return new Date(value).toLocaleDateString("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
+function formatRegistrationDate(value) {
+  const date = new Date(value || Date.now());
+  return Number.isNaN(date.getTime()) ? formatDate(new Date()) : formatDate(date);
 }
 
 function formatFullDate(value) {
@@ -425,7 +553,7 @@ function calcTargets() {
     };
   }
 
-  const weight = number(p.weight);
+  const weight = number(currentWeight());
   const height = number(p.height);
   const age = number(p.age);
   const complete = weight > 0 && height > 0 && age > 0 && Boolean(p.sex) && Boolean(p.activity);
@@ -445,6 +573,184 @@ function calcTargets() {
   const fat = weight * (p.goalMode === "loss" ? 0.8 : 0.9);
   const carbs = Math.max(0, (calories - protein * 4 - fat * 9) / 4);
   return { bmr, maintenance, calories, protein, fat, carbs, manual: false, complete: true };
+}
+
+function calcAutoNutritionModes() {
+  const p = state.profile;
+  const weight = number(currentWeight());
+  const height = number(p.height);
+  const age = number(p.age);
+  const complete = weight > 0 && height > 0 && age > 0 && Boolean(p.sex) && Boolean(p.activity);
+  if (!complete) {
+    return { complete: false, bmr: 0, maintenance: 0, loss: 0, gain: 0 };
+  }
+
+  const sexOffset = p.sex === "male" ? 5 : p.sex === "female" ? -161 : -78;
+  const bmr = 10 * weight + 6.25 * height - 5 * age + sexOffset;
+  const maintenance = bmr * (activityFactors[p.activity] || activityFactors.low);
+  return {
+    complete: true,
+    bmr,
+    maintenance,
+    loss: maintenance * (1 - number(p.deficitPercent, 15) / 100),
+    gain: maintenance * (1 + number(p.surplusPercent, 10) / 100)
+  };
+}
+
+function ensureOnboardingDraft() {
+  onboardingDraft ||= {
+    name: currentUser.name && currentUser.name !== "Пользователь" ? currentUser.name : state.profile.name || "",
+    age: state.profile.age || "",
+    sex: state.profile.sex || "",
+    height: state.profile.height || "",
+    weight: currentWeight() || state.profile.weight || "",
+    goalMode: state.profile.goalMode || "",
+    targetWeight: state.profile.targetWeight || "",
+    activity: state.profile.activity || ""
+  };
+  return onboardingDraft;
+}
+
+function onboardingNeedsTarget() {
+  const draft = ensureOnboardingDraft();
+  return ["loss", "gain"].includes(draft.goalMode);
+}
+
+function onboardingNextStep(step = onboardingStep) {
+  if (step === 3 && !onboardingNeedsTarget()) return 5;
+  return Math.min(6, step + 1);
+}
+
+function onboardingPreviousStep(step = onboardingStep) {
+  if (step === 5 && !onboardingNeedsTarget()) return 3;
+  return Math.max(1, step - 1);
+}
+
+function syncOnboardingForm(form) {
+  if (!form) return;
+  const draft = ensureOnboardingDraft();
+  const data = new FormData(form);
+  for (const key of ["name", "age", "sex", "height", "weight", "targetWeight"]) {
+    if (data.has(key)) draft[key] = String(data.get(key) || "").trim();
+  }
+}
+
+function validateOnboardingStep(step = onboardingStep) {
+  const draft = ensureOnboardingDraft();
+  if (step === 2) {
+    if (!draft.name || number(draft.age) <= 0 || !draft.sex || number(draft.height) <= 0 || number(draft.weight) <= 0) {
+      toast("Заполните все поля");
+      return false;
+    }
+  }
+  if (step === 3 && !draft.goalMode) {
+    toast("Выберите цель");
+    return false;
+  }
+  if (step === 4 && onboardingNeedsTarget() && number(draft.targetWeight) <= 0) {
+    toast("Введите целевой вес");
+    return false;
+  }
+  if (step === 5 && !draft.activity) {
+    toast("Выберите активность");
+    return false;
+  }
+  return true;
+}
+
+function focusOnboardingField() {
+  setTimeout(() => {
+    const field = app.querySelector("[data-onboarding-autofocus]");
+    if (field instanceof HTMLElement) field.focus();
+  }, 80);
+}
+
+function advanceOnboarding(form) {
+  syncOnboardingForm(form);
+  if (!validateOnboardingStep()) return;
+  if (onboardingStep === 5) onboardingStep = 6;
+  else onboardingStep = onboardingNextStep();
+  render();
+  focusOnboardingField();
+}
+
+function goBackOnboarding() {
+  onboardingStep = onboardingPreviousStep();
+  render();
+  focusOnboardingField();
+}
+
+function selectOnboardingGoal(goal) {
+  const draft = ensureOnboardingDraft();
+  draft.goalMode = goal;
+  if (!["loss", "gain"].includes(goal)) draft.targetWeight = draft.weight;
+  render();
+}
+
+function selectOnboardingActivity(activity) {
+  ensureOnboardingDraft().activity = activity;
+  render();
+}
+
+function waterRateForActivity(activity) {
+  return ({
+    minimal: 30,
+    low: 32,
+    medium: 35,
+    high: 38,
+    veryHigh: 40
+  })[activity] || 35;
+}
+
+function calcOnboardingResults() {
+  const draft = ensureOnboardingDraft();
+  const weight = number(draft.weight);
+  const height = number(draft.height);
+  const age = number(draft.age);
+  const sexOffset = draft.sex === "male" ? 5 : draft.sex === "female" ? -161 : -78;
+  const bmr = weight > 0 && height > 0 && age > 0 ? 10 * weight + 6.25 * height - 5 * age + sexOffset : 0;
+  const maintenance = bmr * (activityFactors[draft.activity] || activityFactors.low);
+  const multiplier = draft.goalMode === "loss" ? 0.85 : draft.goalMode === "gain" ? 1.1 : 1;
+  const calories = maintenance * multiplier;
+  const protein = weight * (draft.goalMode === "gain" ? 2 : draft.goalMode === "loss" ? 1.8 : 1.6);
+  const fat = weight * (draft.goalMode === "loss" ? 0.8 : 0.9);
+  const carbs = Math.max(0, (calories - protein * 4 - fat * 9) / 4);
+  const water = Math.round(weight * waterRateForActivity(draft.activity) / 50) * 50;
+  return { bmr, maintenance, calories, protein, fat, carbs, water };
+}
+
+function finishOnboarding() {
+  const draft = ensureOnboardingDraft();
+  const weight = number(draft.weight);
+  const today = todayIso();
+  state.createdAt ||= new Date().toISOString();
+  state.onboardingCompleted = true;
+  state.profile.name = draft.name;
+  state.profile.age = number(draft.age);
+  state.profile.sex = draft.sex;
+  state.profile.height = number(draft.height);
+  state.profile.weight = weight;
+  state.profile.targetWeight = onboardingNeedsTarget() ? number(draft.targetWeight) : weight;
+  state.profile.goalMode = draft.goalMode || "maintain";
+  state.profile.targetMode = "auto";
+  state.profile.activity = draft.activity;
+  state.profile.deficitPercent = 15;
+  state.profile.surplusPercent = 10;
+  state.profile.manualTargets = { calories: "", protein: "", fat: "", carbs: "" };
+  state.settings.waterManual = false;
+  state.settings.waterGoal = calcOnboardingResults().water || number(state.settings.waterGoal, 2200);
+  state.weightLogs = [{
+    id: uid(),
+    date: today,
+    weight,
+    createdAt: `${today}T00:00:00`
+  }];
+  activeScreen = "diary";
+  onboardingDraft = null;
+  onboardingStep = 1;
+  persist({ immediate: true });
+  render();
+  toast("Eighty готов к работе");
 }
 
 function targetValue(value, unit = "") {
@@ -467,6 +773,56 @@ function calcProduct(product, amount) {
     protein: number(product.protein) * factor,
     fat: number(product.fat) * factor,
     carbs: number(product.carbs) * factor
+  };
+}
+
+function productById(id) {
+  return state.products.find((product) => product.id === id);
+}
+
+function ingredientItemById(id, ownerDishId = "") {
+  const product = productById(id);
+  if (product) return product;
+  const dish = state.dishes.find((item) => item.id === id && item.id !== ownerDishId);
+  return dish ? dishAsProduct(dish) : null;
+}
+
+function calcDish(dish) {
+  const ingredients = (dish.ingredients || [])
+    .map((ingredient) => {
+      const product = ingredientItemById(ingredient.productId, dish.id);
+      const amount = number(ingredient.amount);
+      return product && amount > 0 ? { ingredient, product, amount, nutrients: calcProduct(product, amount) } : null;
+    })
+    .filter(Boolean);
+  const totalWeight = ingredients.reduce((sum, item) => sum + item.amount, 0);
+  const total = sumNutrients(ingredients.map((item) => ({ nutrients: item.nutrients })));
+  const per100Factor = totalWeight > 0 ? 100 / totalWeight : 0;
+  return {
+    ingredients,
+    totalWeight,
+    total,
+    per100: {
+      calories: total.calories * per100Factor,
+      protein: total.protein * per100Factor,
+      fat: total.fat * per100Factor,
+      carbs: total.carbs * per100Factor
+    }
+  };
+}
+
+function dishAsProduct(dish) {
+  const totals = calcDish(dish);
+  return {
+    id: dish.id,
+    kind: "dish",
+    name: dish.name,
+    type: "weight",
+    calories: totals.per100.calories,
+    protein: totals.per100.protein,
+    fat: totals.per100.fat,
+    carbs: totals.per100.carbs,
+    dish
   };
 }
 
@@ -502,7 +858,7 @@ function sortedWeightLogs() {
 }
 
 function startWeight() {
-  return number(state.profile.weight);
+  return number(sortedWeightLogs()[0]?.weight);
 }
 
 function latestWeightEntry() {
@@ -510,7 +866,7 @@ function latestWeightEntry() {
 }
 
 function currentWeight() {
-  return number(latestWeightEntry()?.weight) || startWeight();
+  return number(latestWeightEntry()?.weight);
 }
 
 function waterRate() {
@@ -682,14 +1038,47 @@ function earnedAchievementCount() {
 function setScreen(screen) {
   activeScreen = screen;
   closeModal();
-  if (screen === "add" && !state.products.length) addPanelMode = "new";
+  if (screen === "add") {
+    addPage = "home";
+    addPanelMode = "existing";
+    addFoodSource = "mine";
+    eightyCategoryId = "";
+    eightyImport = { items: {}, query: "" };
+  }
+  if (screen === "favorites") {
+    favoritesPage = "home";
+    favoritesEightyCategoryId = "";
+    favoritesEightyQuery = "";
+  }
+  render();
+}
+
+function setAddPage(page) {
+  addPage = page;
+  if (page === "home") {
+    eightyImport = { items: {}, query: "" };
+    eightyCategoryId = "";
+    addFoodQuery = "";
+    entryDraft = { meal: entryDraft.meal || "breakfast", items: {} };
+    dishBuilder = null;
+  }
+  if (page === "ration") addFoodSource = "mine";
+  if (page === "dish" && !dishBuilder) dishBuilder = { name: "", query: "", ingredients: [] };
+  if (page === "eighty") {
+    eightyImport.query = "";
+    eightyCategoryId = "";
+  }
   render();
 }
 
 function openAdd(meal = "breakfast") {
   activeScreen = "add";
   entryDraft.meal = meal;
-  addPanelMode = state.products.length ? "existing" : "new";
+  addPage = "ration";
+  addPanelMode = "existing";
+  addFoodSource = "mine";
+  eightyCategoryId = "";
+  eightyImport = { items: {}, query: "" };
   render();
 }
 
@@ -709,11 +1098,131 @@ function blurActive() {
 }
 
 function closeModal(name) {
+  if (accountDeleteBusy) return;
   if (!name || name === "water") waterHistoryOpen = false;
   if (!name || name === "profile-details") profileDetailsOpen = false;
-  if (!name || name === "weight-history") weightHistoryOpen = false;
+  if (!name || name === "nutrition-info") nutritionInfoOpen = false;
+  if (!name || name === "eighty-food") eightyFoodDialog = null;
+  if (!name || name === "library-editor") libraryEditor = null;
+  if (!name || name === "delete-confirm") deleteConfirm = null;
+  if (!name || name === "account-delete") accountDeleteOpen = false;
+  if (!name || name === "weight-history") {
+    weightHistoryOpen = false;
+    weightEditor = null;
+  }
   if (!name || name === "achievements") achievementsOpen = false;
   if (!name || name === "earned-achievements") earnedAchievementsOpen = false;
+}
+
+function emptyUserState() {
+  const now = new Date().toISOString();
+  return {
+    version: 5,
+    createdAt: now,
+    accountResetAt: now,
+    onboardingCompleted: false,
+    telegram: {
+      name: "",
+      telegramId: "",
+      photoUrl: ""
+    },
+    profile: {
+      name: "",
+      sex: "",
+      age: "",
+      height: "",
+      weight: "",
+      targetWeight: "",
+      activity: "",
+      goalMode: "loss",
+      targetMode: "auto",
+      deficitPercent: 15,
+      surplusPercent: 10,
+      manualTargets: {
+        calories: "",
+        protein: "",
+        fat: "",
+        carbs: ""
+      }
+    },
+    settings: {
+      waterEnabled: true,
+      waterManual: false,
+      waterGoal: ""
+    },
+    products: [],
+    dishes: [],
+    eightyOverrides: {},
+    diary: {},
+    water: {},
+    waterHistory: {},
+    weightLogs: [],
+    stats: {
+      currentStreak: 0,
+      maxStreak: 0
+    },
+    achievements: {
+      unlocked: {}
+    }
+  };
+}
+
+function resetTransientUiState() {
+  selectedDate = todayIso();
+  analyticsRange = "week";
+  analyticsDate = todayIso();
+  favoritesQuery = "";
+  favoritesSort = "az";
+  favoritesPage = "home";
+  favoritesEightyCategoryId = "";
+  favoritesEightyQuery = "";
+  onboardingStep = 1;
+  onboardingDraft = null;
+  libraryEditor = null;
+  deleteConfirm = null;
+  entryDraft = { meal: "breakfast", items: {} };
+  mealCartOpen = false;
+  addPanelMode = "existing";
+  addPage = "home";
+  addFoodSource = "mine";
+  addFoodQuery = "";
+  eightyCategoryId = "";
+  eightyFoodDialog = null;
+  eightyImport = { items: {}, query: "" };
+  dishBuilder = null;
+  ingredientPicker = { source: "mine", query: "", categoryId: "", items: {} };
+  waterHistoryOpen = false;
+  profileDetailsOpen = false;
+  nutritionInfoOpen = false;
+  weightHistoryOpen = false;
+  weightEditor = null;
+  accountDeleteOpen = false;
+  achievementsOpen = false;
+  earnedAchievementsOpen = false;
+  activeScreen = "diary";
+}
+
+async function deleteAccount() {
+  if (accountDeleteBusy) return;
+  accountDeleteBusy = true;
+  render();
+
+  const initData = tg?.initData || "";
+  clearTimeout(saveTimer);
+  await fetch(apiUrl("/api/account"), {
+    method: "DELETE",
+    headers: initData ? { "X-Telegram-Init-Data": initData } : {}
+  }).catch(() => {});
+
+  state = emptyUserState();
+  localStorage.removeItem(stateKey);
+  for (const key of legacyStateKeys) localStorage.removeItem(key);
+  await persist({ immediate: true, skipEnsure: true });
+
+  accountDeleteBusy = false;
+  resetTransientUiState();
+  render();
+  toast("Аккаунт удалён");
 }
 
 function ensureEntryDraft() {
@@ -721,7 +1230,7 @@ function ensureEntryDraft() {
   entryDraft.meal ||= "breakfast";
   entryDraft.items ||= {};
   for (const id of Object.keys(entryDraft.items)) {
-    if (!state.products.find((product) => product.id === id)) delete entryDraft.items[id];
+    if (!addMealItemById(id)) delete entryDraft.items[id];
   }
 }
 
@@ -731,10 +1240,80 @@ function sortedProducts(products = state.products, direction = "az") {
     : a.name.localeCompare(b.name, "ru"));
 }
 
+function userEightyFoods(includeDeleted = false) {
+  state.eightyOverrides ||= {};
+  return eightyFoods
+    .map((food) => {
+      const override = state.eightyOverrides[food.sourceId] || {};
+      return {
+        ...food,
+        ...override,
+        id: food.id,
+        sourceId: food.sourceId,
+        categoryId: food.categoryId,
+        categoryLabel: food.categoryLabel,
+        categoryIcon: food.categoryIcon,
+        type: "weight",
+        deleted: Boolean(override.deleted)
+      };
+    })
+    .filter((food) => includeDeleted || !food.deleted);
+}
+
+function eightyFoodById(id, includeDeleted = false) {
+  return userEightyFoods(includeDeleted).find((product) => product.id === id);
+}
+
+function addMealItems() {
+  return [
+    ...state.products.map((product) => ({ ...product, kind: "product" })),
+    ...state.dishes.map((dish) => dishAsProduct(dish))
+  ].sort((a, b) => a.name.localeCompare(b.name, "ru"));
+}
+
+function addMealItemById(id) {
+  return addMealItems().find((item) => item.id === id);
+}
+
+function ensureDishBuilder() {
+  dishBuilder ||= { name: "", query: "", ingredients: [] };
+  dishBuilder.ingredients ||= [];
+  return dishBuilder;
+}
+
+function ingredientSearchItems(query) {
+  const normalized = query.trim().toLowerCase();
+  if (!normalized) return [];
+  return state.products
+    .filter((product) => product.name.toLowerCase().includes(normalized))
+    .map((product) => ({ source: "mine", product }))
+    .slice(0, 12);
+}
+
+function builderDishDraft() {
+  const draft = ensureDishBuilder();
+  return {
+    id: "dish-builder",
+    name: draft.name,
+    ingredients: draft.ingredients
+  };
+}
+
+function addIngredientToBuilder(product) {
+  const draft = ensureDishBuilder();
+  const existing = draft.ingredients.find((ingredient) => ingredient.productId === product.id);
+  if (existing) {
+    existing.amount = number(existing.amount, 0) || 100;
+  } else {
+    draft.ingredients.push({ id: uid(), productId: product.id, amount: 100 });
+  }
+  draft.query = "";
+}
+
 function selectedMealItems() {
   ensureEntryDraft();
-  return sortedProducts(state.products)
-    .filter((product) => hasDraftItem(product.id))
+  return addMealItems()
+    .filter((item) => hasDraftItem(item.id))
     .map((product) => ({ product, amount: entryDraft.items[product.id] }));
 }
 
@@ -747,6 +1326,7 @@ function defaultProductAmount(product) {
 }
 
 function productAmountLabel(product) {
+  if (product.kind === "dish") return "Вес порции, г";
   if (product.type === "piece") return "Количество штук";
   if (product.type === "cooked") return "Сколько граммов готового продукта съедено";
   return "Вес, г";
@@ -773,7 +1353,7 @@ function mealButtonLabel(meal) {
 
 function toggleProduct(id) {
   ensureEntryDraft();
-  const product = state.products.find((item) => item.id === id);
+  const product = addMealItemById(id);
   if (!product) return;
   if (hasDraftItem(id)) delete entryDraft.items[id];
   else entryDraft.items[id] = defaultProductAmount(product);
@@ -809,10 +1389,12 @@ function addEntry(form) {
   }
   entryDraft = { meal, items: {} };
   mealCartOpen = false;
+  addPage = "ration";
+  addFoodQuery = "";
   blurActive();
   persist();
   render();
-  toast("✅ Добавлено в рацион");
+  toast("Продукты успешно добавлены.");
 }
 
 function deleteEntry(id) {
@@ -836,22 +1418,210 @@ function addProduct(form) {
   };
   if (!product.name) return toast("Введите название");
   state.products.unshift(product);
-  ensureEntryDraft();
-  entryDraft.items[product.id] = defaultProductAmount(product);
-  mealCartOpen = true;
-  addPanelMode = "existing";
   blurActive();
   persist();
   render();
   toast("Продукт сохранён");
 }
 
-function deleteProduct(id) {
-  state.products = state.products.filter((item) => item.id !== id);
-  ensureEntryDraft();
-  delete entryDraft.items[id];
+function refreshDiaryEntriesForProduct(product) {
+  for (const entries of Object.values(state.diary || {})) {
+    for (const entry of entries || []) {
+      if (entry.productId !== product.id) continue;
+      entry.label = product.name;
+      entry.unit = product.type === "piece" ? "шт." : "г";
+      entry.nutrients = calcProduct(product, entry.amount);
+    }
+  }
+}
+
+function refreshDiaryEntriesForDish(dish) {
+  const product = dishAsProduct(dish);
+  for (const entries of Object.values(state.diary || {})) {
+    for (const entry of entries || []) {
+      if (entry.productId !== dish.id) continue;
+      entry.label = dish.name;
+      entry.unit = "г";
+      entry.nutrients = calcProduct(product, entry.amount);
+    }
+  }
+}
+
+function saveProductEdit(form) {
+  const data = new FormData(form);
+  const id = data.get("id");
+  const product = state.products.find((item) => item.id === id);
+  if (!product) return;
+  const name = String(data.get("name") || "").trim();
+  if (!name) return toast("Введите название");
+  product.name = name;
+  product.type = data.get("type") || "weight";
+  product.calories = number(data.get("calories"));
+  product.protein = number(data.get("protein"));
+  product.fat = number(data.get("fat"));
+  product.carbs = number(data.get("carbs"));
+  product.cookedDryWeight = number(product.cookedDryWeight, 100);
+  product.cookedReadyWeight = number(product.cookedReadyWeight, 230);
+  refreshDiaryEntriesForProduct(product);
+  libraryEditor = null;
+  blurActive();
   persist();
   render();
+  toast("Сохранено");
+}
+
+function saveEightyEdit(form) {
+  const data = new FormData(form);
+  const id = data.get("id");
+  const base = eightyFoods.find((food) => food.id === id);
+  if (!base) return;
+  const name = String(data.get("name") || "").trim();
+  if (!name) return toast("Введите название");
+  state.eightyOverrides ||= {};
+  state.eightyOverrides[base.sourceId] = {
+    ...(state.eightyOverrides[base.sourceId] || {}),
+    name,
+    calories: number(data.get("calories")),
+    protein: number(data.get("protein")),
+    fat: number(data.get("fat")),
+    carbs: number(data.get("carbs")),
+    deleted: false
+  };
+  libraryEditor = null;
+  blurActive();
+  persist();
+  render();
+  toast("Сохранено");
+}
+
+function deleteEightyFood(id) {
+  const base = eightyFoods.find((food) => food.id === id);
+  if (!base) return;
+  state.eightyOverrides ||= {};
+  state.eightyOverrides[base.sourceId] = {
+    ...(state.eightyOverrides[base.sourceId] || {}),
+    deleted: true
+  };
+  deleteConfirm = null;
+  libraryEditor = null;
+  persist();
+  render();
+  toast("Продукт удалён из вашей базы");
+}
+
+function syncDishDraftFromForm(form) {
+  if (libraryEditor?.kind !== "dish") return;
+  const draft = libraryEditor.draft;
+  draft.name = String(form.querySelector('[name="name"]')?.value || "").trim();
+  draft.ingredients = [...form.querySelectorAll("[data-dish-ingredient]")].map((row) => ({
+    id: row.dataset.dishIngredient,
+    productId: row.querySelector('[name="ingredientProduct"]')?.value || "",
+    amount: optionalNumber(row.querySelector('[name="ingredientAmount"]')?.value)
+  }));
+}
+
+function saveDishEdit(form) {
+  syncDishDraftFromForm(form);
+  const draft = libraryEditor?.draft;
+  if (!draft) return;
+  if (!draft.name) return toast("Введите название");
+  const dish = state.dishes.find((item) => item.id === draft.id);
+  if (dish) {
+    dish.name = draft.name;
+    dish.ingredients = draft.ingredients.filter((ingredient) => ingredient.productId && number(ingredient.amount) > 0);
+    refreshDiaryEntriesForDish(dish);
+  }
+  libraryEditor = null;
+  blurActive();
+  persist();
+  render();
+  toast("Сохранено");
+}
+
+function syncDishBuilderFromForm(form) {
+  const draft = ensureDishBuilder();
+  draft.name = String(form.querySelector('[name="dishName"]')?.value || "").trim();
+  draft.query = String(form.querySelector('[name="dishSearch"]')?.value || "");
+  draft.ingredients = [...form.querySelectorAll("[data-builder-ingredient]")].map((row) => ({
+    id: row.dataset.builderIngredient,
+    productId: draft.ingredients.find((ingredient) => ingredient.id === row.dataset.builderIngredient)?.productId || "",
+    amount: optionalNumber(row.querySelector('[name="builderIngredientAmount"]')?.value)
+  }));
+}
+
+function saveDishCreate(form) {
+  syncDishBuilderFromForm(form);
+  const draft = ensureDishBuilder();
+  if (!draft.name) return toast("Введите название");
+  const ingredients = draft.ingredients.filter((ingredient) => ingredient.productId && number(ingredient.amount) > 0);
+  if (!ingredients.length) return toast("Добавьте ингредиенты");
+  state.dishes.unshift({
+    id: uid(),
+    name: draft.name,
+    ingredients
+  });
+  dishBuilder = null;
+  addPanelMode = "existing";
+  addFoodSource = "mine";
+  addFoodQuery = "";
+  blurActive();
+  persist();
+  render();
+  toast("Блюдо сохранено");
+}
+
+function addPickedIngredientsToDish(form) {
+  const data = new FormData(form);
+  const draft = ensureDishBuilder();
+  const items = selectedIngredientPickerItems()
+    .map((item) => ({
+      item,
+      amount: optionalNumber(data.get(`ingredient-${item.id}`) || ingredientPicker.items[item.id])
+    }))
+    .filter(({ amount }) => number(amount) > 0);
+  if (!items.length) return toast("Введите вес");
+  for (const { item, amount } of items) {
+    const product = ingredientPicker.source === "eighty" ? saveEightyProduct(item) : item;
+    const existing = draft.ingredients.find((ingredient) => ingredient.productId === product.id);
+    if (existing) existing.amount = amount;
+    else draft.ingredients.push({ id: uid(), productId: product.id, amount });
+  }
+  ingredientPicker = { source: "mine", query: "", categoryId: "", items: {} };
+  addPage = "dish";
+  blurActive();
+  persist();
+  render();
+  toast("Ингредиенты добавлены");
+}
+
+function deleteProduct(id) {
+  state.products = state.products.filter((item) => item.id !== id);
+  state.dishes = state.dishes.map((dish) => ({
+    ...dish,
+    ingredients: (dish.ingredients || []).filter((ingredient) => ingredient.productId !== id)
+  }));
+  ensureEntryDraft();
+  delete entryDraft.items[id];
+  deleteConfirm = null;
+  libraryEditor = null;
+  persist();
+  render();
+}
+
+function deleteDish(id) {
+  state.dishes = state.dishes.filter((item) => item.id !== id);
+  deleteConfirm = null;
+  libraryEditor = null;
+  persist();
+  render();
+}
+
+function confirmDelete() {
+  if (!deleteConfirm) return;
+  if (deleteConfirm.kind === "product") deleteProduct(deleteConfirm.id);
+  if (deleteConfirm.kind === "dish") deleteDish(deleteConfirm.id);
+  if (deleteConfirm.kind === "weight") deleteWeight(deleteConfirm.id);
+  if (deleteConfirm.kind === "eighty") deleteEightyFood(deleteConfirm.id);
 }
 
 function addWater(ml) {
@@ -936,7 +1706,6 @@ function syncProfileFromForm(form) {
   p.sex = data.get("sex") || "";
   p.age = optionalNumber(data.get("age"));
   p.height = optionalNumber(data.get("height"));
-  p.weight = optionalNumber(data.get("weight"));
   p.targetWeight = optionalNumber(data.get("targetWeight"));
   p.activity = data.get("activity") || "";
   p.goalMode = data.get("goalMode") || "loss";
@@ -951,9 +1720,7 @@ function syncProfileFromForm(form) {
 }
 
 function syncProfileWaterFromForm(form) {
-  const weight = namedFieldValue(form, "weight");
   const activity = namedFieldValue(form, "activity");
-  if (weight !== "") state.profile.weight = optionalNumber(weight);
   if (activity !== "") state.profile.activity = activity;
   syncWaterSettingsFromForm(form);
 }
@@ -999,6 +1766,7 @@ function updateProfileWaterFromForm(form) {
 
 function saveProfile(form) {
   syncProfileFromForm(form);
+  state.profile.weight = number(currentWeight()) || "";
   profileDetailsOpen = false;
   blurActive();
   persist();
@@ -1008,46 +1776,235 @@ function saveProfile(form) {
 
 function recalculateProfile(form) {
   syncProfileFromForm(form);
+  state.profile.weight = number(currentWeight()) || "";
   persist();
   render();
   toast("Расчёт обновлён");
 }
 
-function addWeight(form) {
+function syncProfileWeightFromLogs() {
+  state.profile.weight = number(currentWeight()) || "";
+}
+
+function openWeightAdd() {
+  weightEditor = { mode: "add", date: todayIso(), weight: "" };
+  weightHistoryOpen = true;
+  render();
+}
+
+function openWeightEditor(id) {
+  const item = state.weightLogs.find((entry) => entry.id === id);
+  if (!item) return;
+  weightEditor = { mode: "edit", id: item.id, date: item.date, weight: item.weight };
+  weightHistoryOpen = true;
+  render();
+}
+
+function saveWeightEntry(form) {
   const date = namedFieldValue(form, "date");
   const weight = number(namedFieldValue(form, "weight"));
   if (!date || weight <= 0) return toast("Введите вес");
-  state.weightLogs.push({ id: uid(), date, weight, createdAt: timestampForDate(date) });
+  const id = namedFieldValue(form, "id");
+  const existing = id ? state.weightLogs.find((item) => item.id === id) : null;
+  if (existing) {
+    existing.date = date;
+    existing.weight = weight;
+    existing.createdAt = `${date}T00:00:00`;
+  } else {
+    state.weightLogs.push({ id: uid(), date, weight, createdAt: `${date}T00:00:00` });
+  }
+  weightEditor = null;
+  syncProfileWeightFromLogs();
   blurActive();
   persist();
   render();
-  toast("Вес добавлен");
+  toast(existing ? "Запись веса обновлена" : "Вес добавлен");
 }
 
 function deleteWeight(id) {
   state.weightLogs = (state.weightLogs || []).filter((item) => item.id !== id);
+  deleteConfirm = null;
+  weightEditor = null;
+  syncProfileWeightFromLogs();
   reconcileWeightAchievements();
   persist();
   render();
   toast("Запись веса удалена");
 }
 
-function handleAddWeightButton(button) {
-  const form = button.closest("[data-weight-form]");
-  if (form) addWeight(form);
+function userLibraryItems(query = favoritesQuery) {
+  const normalized = query.trim().toLowerCase();
+  return [
+    ...state.products.map((product) => ({ kind: "product", item: product, name: product.name })),
+    ...state.dishes.map((dish) => ({ kind: "dish", item: dish, name: dish.name }))
+  ]
+    .filter((entry) => !normalized || entry.name.toLowerCase().includes(normalized))
+    .sort((a, b) => favoritesSort === "za"
+      ? b.name.localeCompare(a.name, "ru")
+      : a.name.localeCompare(b.name, "ru"));
 }
 
-function filteredFavorites() {
-  const query = favoritesQuery.trim().toLowerCase();
-  const products = query
-    ? state.products.filter((item) => item.name.toLowerCase().includes(query))
-    : state.products;
-  return sortedProducts(products, favoritesSort);
+function onboardingProgress() {
+  return `<div class="onboarding-progress">
+    <span>Шаг ${onboardingStep} из 6</span>
+    <div>${[1, 2, 3, 4, 5, 6].map((step) => `<i class="${step <= onboardingStep ? "active" : ""}"></i>`).join("")}</div>
+  </div>`;
+}
+
+function onboardingShell(content, back = false) {
+  return `<main class="onboarding-screen">
+    <section class="onboarding-card">
+      ${back ? `<button class="back-link onboarding-back" type="button" data-action="onboarding-back">← Назад</button>` : ""}
+      ${content}
+      ${onboardingProgress()}
+    </section>
+  </main>`;
+}
+
+function screenOnboarding() {
+  ensureOnboardingDraft();
+  if (onboardingStep === 2) return onboardingStepProfile();
+  if (onboardingStep === 3) return onboardingStepGoal();
+  if (onboardingStep === 4) return onboardingStepTarget();
+  if (onboardingStep === 5) return onboardingStepActivity();
+  if (onboardingStep === 6) return onboardingStepDone();
+  return onboardingStepWelcome();
+}
+
+function onboardingStepWelcome() {
+  return onboardingShell(`
+    <div class="brand-mark onboarding-logo">80</div>
+    <div class="onboarding-copy">
+      <h1>Добро пожаловать в Eighty 👋</h1>
+      <p>За одну минуту мы настроим приложение специально под вас.</p>
+    </div>
+    <div class="onboarding-feature-list">
+      ${["дневную норму калорий", "КБЖУ", "норму воды", "BMR", "поддержание веса", "цель по калориям"].map((item) => `<span>• ${item}</span>`).join("")}
+    </div>
+    <button class="primary-btn full-btn onboarding-main-btn" type="button" data-action="onboarding-start">Начать настройку</button>
+  `);
+}
+
+function onboardingStepProfile() {
+  const draft = ensureOnboardingDraft();
+  return onboardingShell(`
+    <div class="onboarding-copy">
+      <span>Основные данные</span>
+      <h1>Расскажите немного о себе</h1>
+    </div>
+    <form class="form-grid onboarding-form" data-form="onboarding">
+      <div class="field full"><label>Имя</label><input name="name" value="${escapeHtml(draft.name)}" placeholder="Ваше имя" required data-onboarding-autofocus></div>
+      <div class="field"><label>Возраст</label><input name="age" type="number" inputmode="numeric" value="${escapeHtml(draft.age)}" placeholder="28" required></div>
+      <div class="field"><label>Пол</label><select name="sex" required>${option("", "Выберите", draft.sex)}${option("female", "Женский", draft.sex)}${option("male", "Мужской", draft.sex)}${option("other", "Другой", draft.sex)}</select></div>
+      <div class="field"><label>Рост, см</label><input name="height" type="number" inputmode="numeric" value="${escapeHtml(draft.height)}" placeholder="180" required></div>
+      <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${escapeHtml(draft.weight)}" placeholder="99" required></div>
+      <button class="primary-btn full-btn field full onboarding-main-btn" type="submit">Далее</button>
+    </form>
+  `, true);
+}
+
+function onboardingChoiceCard(icon, title, value, selected, dataset) {
+  return `<button class="onboarding-choice ${selected ? "selected" : ""}" type="button" ${dataset}="${value}">
+    <span>${icon}</span>
+    <strong>${title}</strong>
+  </button>`;
+}
+
+function onboardingStepGoal() {
+  const draft = ensureOnboardingDraft();
+  const cards = [
+    ["⬇️", "Похудение", "loss"],
+    ["⚖️", "Поддержание веса", "maintain"],
+    ["⬆️", "Набор массы", "gain"],
+    ["📒", "Просто вести дневник", "diary"]
+  ];
+  return onboardingShell(`
+    <div class="onboarding-copy">
+      <span>Цель</span>
+      <h1>Какая у вас цель?</h1>
+    </div>
+    <div class="onboarding-choice-grid">
+      ${cards.map(([icon, title, value]) => onboardingChoiceCard(icon, title, value, draft.goalMode === value, "data-onboarding-goal")).join("")}
+    </div>
+    <button class="primary-btn full-btn onboarding-main-btn" type="button" data-action="onboarding-next">Далее</button>
+  `, true);
+}
+
+function onboardingStepTarget() {
+  const draft = ensureOnboardingDraft();
+  return onboardingShell(`
+    <div class="onboarding-copy">
+      <span>Целевой вес</span>
+      <h1>Каким должен быть ваш вес?</h1>
+    </div>
+    <form class="form-grid onboarding-form" data-form="onboarding">
+      <div class="field full"><label>Текущий вес</label><input value="${escapeHtml(draft.weight)} кг" disabled></div>
+      <div class="field full"><label>Целевой вес, кг</label><input name="targetWeight" type="number" inputmode="decimal" step="0.1" value="${escapeHtml(draft.targetWeight)}" placeholder="${draft.goalMode === "gain" ? "105" : "80"}" required data-onboarding-autofocus></div>
+      <button class="primary-btn full-btn field full onboarding-main-btn" type="submit">Далее</button>
+    </form>
+  `, true);
+}
+
+function onboardingStepActivity() {
+  const draft = ensureOnboardingDraft();
+  const cards = [
+    ["😴", "Минимальная", "minimal"],
+    ["🚶", "Низкая", "low"],
+    ["🏃", "Средняя", "medium"],
+    ["💪", "Высокая", "high"],
+    ["🏋️", "Очень высокая", "veryHigh"]
+  ];
+  return onboardingShell(`
+    <div class="onboarding-copy">
+      <span>Активность</span>
+      <h1>Насколько вы активны?</h1>
+    </div>
+    <div class="onboarding-choice-grid">
+      ${cards.map(([icon, title, value]) => onboardingChoiceCard(icon, title, value, draft.activity === value, "data-onboarding-activity")).join("")}
+    </div>
+    <button class="primary-btn full-btn onboarding-main-btn" type="button" data-action="onboarding-next">Рассчитать</button>
+  `, true);
+}
+
+function onboardingResultRow(icon, title, value, text) {
+  return `<div class="onboarding-result-row">
+    <span>${icon}</span>
+    <div><strong>${title}</strong><b>${value}</b>${text ? `<p>${text}</p>` : ""}</div>
+  </div>`;
+}
+
+function onboardingStepDone() {
+  const draft = ensureOnboardingDraft();
+  const results = calcOnboardingResults();
+  return onboardingShell(`
+    <div class="onboarding-copy">
+      <span>Ваши результаты</span>
+      <h1>Всё готово</h1>
+    </div>
+    <div class="onboarding-results">
+      ${onboardingResultRow("🔥", "BMR", targetValue(results.bmr, "ккал"), "Расход калорий в состоянии покоя.")}
+      ${onboardingResultRow("⚖️", "Поддержание", targetValue(results.maintenance, "ккал"), "Норма для сохранения текущего веса.")}
+      ${onboardingResultRow("🎯", "Текущая цель", `${labels.goals[draft.goalMode] || "Похудение"} · ${targetValue(results.calories, "ккал")}`, "")}
+      ${onboardingResultRow("💧", "Вода", `${round(results.water / 1000, 1)} л`, "")}
+      <div class="onboarding-macro-strip">
+        <div><span>🥩 Белки</span><b>${round(results.protein)} г</b></div>
+        <div><span>🥑 Жиры</span><b>${round(results.fat)} г</b></div>
+        <div><span>🍚 Углеводы</span><b>${round(results.carbs)} г</b></div>
+      </div>
+    </div>
+    <p class="onboarding-ready">Eighty полностью готов к работе. Все расчёты будут автоматически обновляться при изменении ваших данных. Теперь осталось только начать вести дневник питания.</p>
+    <button class="primary-btn full-btn onboarding-main-btn" type="button" data-action="onboarding-finish">Начать пользоваться Eighty</button>
+  `, true);
 }
 
 function render() {
   ensureShape();
   ensureEntryDraft();
+  if (!state.onboardingCompleted) {
+    app.innerHTML = screenOnboarding();
+    focusOnboardingField();
+    return;
+  }
   const targets = calcTargets();
   const consumed = sumNutrients(entriesForDate());
 
@@ -1062,9 +2019,17 @@ function render() {
     ${tabs()}
     ${waterHistoryOpen ? waterHistoryModal() : ""}
     ${profileDetailsOpen ? profileDetailsModal(targets) : ""}
+    ${nutritionInfoOpen ? nutritionInfoModal(targets) : ""}
+    ${eightyFoodDialog ? eightyFoodModal() : ""}
+    ${libraryEditor?.kind === "product" ? productEditModal() : ""}
+    ${libraryEditor?.kind === "dish" ? dishEditModal() : ""}
+    ${libraryEditor?.kind === "eighty" ? eightyEditModal() : ""}
     ${weightHistoryOpen ? weightHistoryModal() : ""}
     ${achievementsOpen ? achievementsModal(false) : ""}
     ${earnedAchievementsOpen ? achievementsModal(true) : ""}
+    ${deleteConfirm ? deleteConfirmModal() : ""}
+    ${accountDeleteOpen ? accountDeleteModal() : ""}
+    ${accountDeleteBusy ? accountDeletingOverlay() : ""}
   `;
 }
 
@@ -1073,7 +2038,7 @@ function tabs() {
     ["diary", icons.diary, "Дневник"],
     ["analytics", icons.analytics, "Аналитика"],
     ["add", icons.add, "Добавить"],
-    ["favorites", icons.favorite, "Избранное"],
+    ["favorites", icons.favorite, "Мои продукты"],
     ["profile", icons.profile, "Профиль"]
   ];
   return `<nav class="tabs">${items.map(([id, icon, label]) => `
@@ -1108,7 +2073,7 @@ function screenDiary(targets, consumed) {
 function diaryDayHeader() {
   const isToday = selectedDate >= todayIso();
   return `<div class="diary-day-head">
-    <div class="hello-card">Привет, ${escapeHtml(currentUser.name || state.profile.name || "Пользователь")}!</div>
+    <div class="hello-card">Привет, ${escapeHtml(state.profile.name || currentUser.name || "Пользователь")}!</div>
     <div class="day-actions">
       <button class="icon-btn" data-action="prev-date" title="Предыдущий день">${icons.prev}</button>
       <button class="icon-btn" data-action="next-date" title="Следующий день" ${isToday ? "disabled" : ""}>${icons.next}</button>
@@ -1425,41 +2390,405 @@ function statCard(label, value) {
 function screenAdd() {
   return `<section class="screen ${activeScreen === "add" ? "active" : ""}">
     <div class="stack">
-      <header class="screen-header">
-        <span>ДОБАВЛЕНИЕ</span>
-        <h1>Добавить еду</h1>
-      </header>
-      <div class="segmented">
-        <button class="${addPanelMode === "existing" ? "active" : ""}" data-add-panel="existing">В рацион</button>
-        <button class="${addPanelMode === "new" ? "active" : ""}" data-add-panel="new">Новый продукт</button>
-      </div>
-      ${addPanelMode === "new" ? manualProductForm() : existingProductPanel()}
+      ${addPageContent()}
     </div>
   </section>`;
 }
 
-function existingProductPanel() {
-  if (!state.products.length) {
-    return `<div class="big-empty">
-      <div>
-        <strong>Нет продуктов</strong>
-        <span>Создайте первый продукт, чтобы добавить его в рацион.</span>
-        <button class="primary-btn" data-add-panel="new" type="button">Создать продукт</button>
+function addPageContent() {
+  if (addPage === "ration") return addRationPage();
+  if (addPage === "ration-amounts") return addRationAmountsPage();
+  if (addPage === "product") return createProductPage();
+  if (addPage === "dish") return dishBuilderPanel();
+  if (addPage === "dish-library") return dishIngredientLibraryPage();
+  if (addPage === "dish-library-amounts") return dishIngredientAmountsPage();
+  if (addPage === "eighty") return eightyCategoriesPage();
+  if (addPage === "eighty-category") return eightyCategoryPage();
+  if (addPage === "eighty-amounts") return eightyImportAmountsPage();
+  return addHomePage();
+}
+
+function addBackHeader(title, backPage = "home") {
+  return `<header class="screen-header add-subpage-head">
+    <button class="back-link" type="button" data-add-page="${backPage}">← Назад</button>
+    <h1>${title}</h1>
+  </header>`;
+}
+
+function addHomePage() {
+  return `
+    <header class="screen-header">
+      <span>ДОБАВЛЕНИЕ</span>
+      <h1>Добавить</h1>
+    </header>
+    <div class="add-action-grid">
+      ${addActionCard("📦", "Создать продукт", "product")}
+      ${addActionCard("🍽", "Создать блюдо", "dish")}
+    </div>
+    ${addRationPage(false)}`;
+}
+
+function addActionCard(icon, title, page) {
+  return `<button class="add-action-card" type="button" data-add-page="${page}">
+    <span>${icon}</span>
+    <strong>${title}</strong>
+  </button>`;
+}
+
+function addRationPage(showHeader = true) {
+  const products = filteredAddProducts();
+  const selectedCount = selectedMealItems().length;
+  return `
+    ${showHeader ? addBackHeader("Добавить в рацион") : ""}
+    <div class="add-meal-flow add-ration-page">
+      <div class="segmented meal-segments">
+        ${Object.entries(labels.meals).map(([id, data]) => `<button class="${entryDraft.meal === id ? "active" : ""}" type="button" data-add-meal="${id}">${data.short}</button>`).join("")}
       </div>
+      <div class="dish-search-row"><input class="search-input" data-add-food-query value="${escapeHtml(addFoodQuery)}" placeholder="Поиск продуктов и блюд"><button class="icon-btn library-open-btn" type="button" data-add-page="eighty" title="База Eighty">📚</button></div>
+      <div class="product-choice-list">
+        ${products.length
+          ? products.map(rationChoiceCard).join("")
+          : `<div class="big-empty compact-empty"><div><strong>Ничего не найдено</strong><span>Здесь отображаются только ваши продукты и блюда.</span></div></div>`}
+      </div>
+      <button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="button" data-action="ration-next" ${selectedCount ? "" : "disabled"}>Добавить (${selectedCount})</button>
     </div>`;
-  }
-  const products = sortedProducts(state.products);
+}
+
+function rationChoiceCard(product) {
+  const selected = hasDraftItem(product.id);
+  const label = product.kind === "dish" ? "🍽 Блюдо · на 100 г" : `📦 ${labels.productTypes[product.type]}`;
+  return `<article class="product-choice ration-choice ${selected ? "selected" : ""}">
+    <button class="product-choice-main" type="button" data-toggle-product="${product.id}">
+      <span>
+        <strong>${escapeHtml(product.name)}</strong>
+        <em>${label}</em>
+      </span>
+      <b>${round(product.calories)} ккал</b>
+      ${selected ? `<i class="choice-check">✓</i>` : ""}
+    </button>
+  </article>`;
+}
+
+function addRationAmountsPage() {
+  const items = selectedMealItems();
+  const complete = items.length && items.every(({ product, amount }) => product.type === "piece" ? number(amount, 1) > 0 : number(amount) > 0);
+  return `
+    ${addBackHeader("Количество", "ration")}
+    <form class="add-meal-flow" data-form="entry">
+      <input type="hidden" name="meal" value="${entryDraft.meal}">
+      <div class="product-choice-list">
+        ${items.length ? items.map(rationAmountCard).join("") : `<div class="empty-line">Выберите продукты</div>`}
+      </div>
+      <button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="submit" ${complete ? "" : "disabled"}>${mealButtonLabel(entryDraft.meal)}</button>
+    </form>`;
+}
+
+function rationAmountCard({ product, amount }) {
+  return `<article class="product-choice selected">
+    <div class="product-choice-main static-choice">
+      <span>
+        <strong>${escapeHtml(product.name)}</strong>
+        <em>${product.kind === "dish" ? "Вес порции, г" : productAmountLabel(product)}</em>
+      </span>
+      <b>${round(product.calories)} ккал</b>
+    </div>
+    <div class="product-choice-amount">
+      <label for="amount-${product.id}">${productAmountLabel(product)}</label>
+      <input id="amount-${product.id}" data-cart-amount="${product.id}" type="number" min="1" step="${product.type === "piece" ? "1" : "0.1"}" inputmode="${product.type === "piece" ? "numeric" : "decimal"}" enterkeyhint="next" placeholder="${productAmountPlaceholder(product)}" value="${escapeHtml(amount)}">
+    </div>
+  </article>`;
+}
+
+function existingProductPanel() {
+  const products = filteredAddProducts();
   return `<form class="add-meal-flow" data-form="entry">
     <div class="segmented meal-segments">
       ${Object.entries(labels.meals).map(([id, data]) => `<button class="${entryDraft.meal === id ? "active" : ""}" type="button" data-add-meal="${id}">${data.short}</button>`).join("")}
     </div>
     <input type="hidden" name="meal" value="${entryDraft.meal}">
+    <input class="search-input" data-add-food-query value="${escapeHtml(addFoodQuery)}" placeholder="Поиск продуктов">
     ${mealCartPanel()}
-    <div class="product-choice-list">
-      ${products.map(productChoiceCard).join("")}
-    </div>
-    <button class="primary-btn full-btn add-meal-submit" type="submit" ${selectedMealItems().length ? "" : "disabled"}>${mealButtonLabel(entryDraft.meal)}</button>
+    ${myFoodPanel(products)}
   </form>`;
+}
+
+function filteredAddProducts() {
+  const query = addFoodQuery.trim().toLowerCase();
+  const items = addMealItems();
+  return query
+    ? items.filter((item) => item.name.toLowerCase().includes(query))
+    : items;
+}
+
+function myFoodPanel(products) {
+  return `
+    <div class="product-choice-list" data-add-products-list>
+      ${products.length
+        ? products.map(productChoiceCard).join("")
+        : `<div class="big-empty compact-empty"><div><strong>Нет продуктов</strong><span>${addFoodQuery.trim() ? "Поиск ничего не нашёл." : "Создайте продукт в личной библиотеке."}</span></div></div>`}
+    </div>
+    <button class="primary-btn full-btn add-meal-submit" type="submit" ${selectedMealItems().length ? "" : "disabled"}>${mealButtonLabel(entryDraft.meal)}</button>`;
+}
+
+function eightyFoodPanel() {
+  const query = addFoodQuery.trim().toLowerCase();
+  const selectedCategory = eightyFoodCategories.find((category) => category.id === eightyCategoryId);
+  if (!query && !selectedCategory) {
+    return `<div class="eighty-category-list">
+      ${eightyFoodCategories.map((category) => `<button class="eighty-category-card" type="button" data-eighty-category="${category.id}">
+        <span>${category.icon}</span>
+        <strong>${category.label}</strong>
+      </button>`).join("")}
+      <p class="eighty-source-note">Используются средние справочные значения КБЖУ на 100 г. При необходимости вы можете изменить их после добавления продукта.</p>
+    </div>`;
+  }
+
+  const products = query
+    ? userEightyFoods().filter((product) => product.name.toLowerCase().includes(query))
+    : userEightyFoods().filter((product) => product.categoryId === selectedCategory.id);
+
+  return `<div class="eighty-food-stack">
+    ${!query && selectedCategory ? `<button class="secondary-btn compact-back" type="button" data-eighty-category="">← ${selectedCategory.icon} ${selectedCategory.label}</button>` : ""}
+    <div class="product-choice-list">
+      ${products.length
+        ? products.map(eightyFoodCard).join("")
+        : `<div class="empty-line">В базе Eighty ничего не найдено</div>`}
+    </div>
+  </div>`;
+}
+
+function eightyFoodCard(product) {
+  return `<article class="product-choice eighty-product">
+    <button class="product-choice-main" type="button" data-eighty-food="${product.id}">
+      <span>
+        <strong>${escapeHtml(product.name)}</strong>
+        <em>${product.categoryIcon} ${product.categoryLabel} · на 100 г</em>
+      </span>
+      <b>${round(product.calories)} ккал</b>
+    </button>
+    <div class="eighty-macro-line">
+      <span>Б ${round(product.protein, 1)}</span>
+      <span>Ж ${round(product.fat, 1)}</span>
+      <span>У ${round(product.carbs, 1)}</span>
+    </div>
+  </article>`;
+}
+
+function eightyCategoriesPage() {
+  const selectedCount = selectedEightyFoods().length;
+  return `
+    ${addBackHeader("База Eighty")}
+    <div class="add-meal-flow">
+      <div class="eighty-category-list">
+        ${eightyFoodCategories.map((category) => `<button class="eighty-category-card" type="button" data-open-eighty-category="${category.id}">
+          <span>${category.icon}</span>
+          <strong>${category.label}</strong>
+        </button>`).join("")}
+      </div>
+      ${selectedCount ? `<button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="button" data-action="eighty-import-next">Добавить (${selectedCount})</button>` : ""}
+    </div>`;
+}
+
+function visibleEightyProducts(categoryId) {
+  const query = (eightyImport.query || "").trim().toLowerCase();
+  return userEightyFoods()
+    .filter((product) => product.categoryId === categoryId)
+    .filter((product) => !query || product.name.toLowerCase().includes(query));
+}
+
+function selectedEightyFoods() {
+  return Object.keys(eightyImport.items || {})
+    .map((id) => eightyFoodById(id))
+    .filter(Boolean);
+}
+
+function eightyCategoryPage() {
+  const category = eightyFoodCategories.find((item) => item.id === eightyCategoryId) || eightyFoodCategories[0];
+  const products = visibleEightyProducts(category.id);
+  const selectedCount = selectedEightyFoods().length;
+  return `
+    ${addBackHeader(`${category.icon} ${category.label}`, "eighty")}
+    <div class="add-meal-flow">
+      <input class="search-input" data-eighty-import-query value="${escapeHtml(eightyImport.query || "")}" placeholder="Поиск">
+      <div class="product-choice-list">
+        ${products.length
+          ? products.map(eightyImportChoiceCard).join("")
+          : `<div class="big-empty compact-empty"><div><strong>Ничего не найдено</strong><span>Измените поиск или выберите другую категорию.</span></div></div>`}
+      </div>
+      ${selectedCount ? `<button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="button" data-action="eighty-import-next">Добавить (${selectedCount})</button>` : ""}
+    </div>`;
+}
+
+function eightyImportChoiceCard(product) {
+  const selected = Object.prototype.hasOwnProperty.call(eightyImport.items, product.id);
+  return `<article class="product-choice ration-choice ${selected ? "selected" : ""}">
+    <button class="product-choice-main" type="button" data-toggle-eighty-import="${product.id}">
+      <span>
+        <strong>${escapeHtml(product.name)}</strong>
+        <em>${product.categoryIcon} ${product.categoryLabel} · на 100 г</em>
+      </span>
+      <b>${round(product.calories)} ккал</b>
+      ${selected ? `<i class="choice-check">✓</i>` : ""}
+    </button>
+  </article>`;
+}
+
+function eightyImportAmountsPage() {
+  const products = selectedEightyFoods();
+  const complete = products.length && products.every((product) => number(eightyImport.items[product.id]) > 0);
+  return `
+    ${addBackHeader("Вес продуктов", "eighty-category")}
+    <form class="add-meal-flow" data-form="eighty-import">
+      <div class="product-choice-list">
+        ${products.length ? products.map(eightyImportAmountCard).join("") : `<div class="empty-line">Выберите продукты</div>`}
+      </div>
+      <button class="primary-btn full-btn sticky-add-submit" type="submit" ${complete ? "" : "disabled"}>${mealButtonLabel(entryDraft.meal)}</button>
+    </form>`;
+}
+
+function eightyImportAmountCard(product) {
+  return `<article class="product-choice selected">
+    <div class="product-choice-main static-choice">
+      <span>
+        <strong>${escapeHtml(product.name)}</strong>
+        <em>Вес</em>
+      </span>
+      <b>${round(product.calories)} ккал</b>
+    </div>
+    <div class="product-choice-amount">
+      <label for="eighty-import-${product.id}">Вес, г</label>
+      <input id="eighty-import-${product.id}" name="eighty-${product.id}" data-eighty-import-amount="${product.id}" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="300" value="${escapeHtml(eightyImport.items[product.id])}">
+    </div>
+  </article>`;
+}
+
+function savedEightyProduct(food) {
+  return state.products.find((product) => product.sourceId === food.sourceId)
+    || state.products.find((product) => product.name.toLowerCase() === food.name.toLowerCase() && product.type === "weight");
+}
+
+function saveEightyProduct(food) {
+  const existing = savedEightyProduct(food);
+  if (existing) return existing;
+  const product = {
+    id: uid(),
+    source: "eighty",
+    sourceId: food.sourceId,
+    name: food.name,
+    type: "weight",
+    calories: food.calories,
+    protein: food.protein,
+    fat: food.fat,
+    carbs: food.carbs,
+    cookedDryWeight: 100,
+    cookedReadyWeight: 100
+  };
+  state.products.unshift(product);
+  return product;
+}
+
+function nutritionSummary(product, amount = 100) {
+  const nutrients = calcProduct(product, amount);
+  return `<div class="eighty-nutrition-grid">
+    <div><span>Ккал</span><b>${round(nutrients.calories)}</b></div>
+    <div><span>Б</span><b>${round(nutrients.protein, 1)}</b></div>
+    <div><span>Ж</span><b>${round(nutrients.fat, 1)}</b></div>
+    <div><span>У</span><b>${round(nutrients.carbs, 1)}</b></div>
+  </div>`;
+}
+
+function eightyFoodModal() {
+  const food = eightyFoodById(eightyFoodDialog?.foodId);
+  if (!food) return "";
+  const amount = Math.max(0, number(eightyFoodDialog.amount, 100));
+  return `<div class="modal-backdrop" data-modal-close="eighty-food">
+    <div class="modal-card eighty-food-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(food.name)}">
+      <div class="modal-head">
+        <div>
+          <span>${food.categoryIcon} ${food.categoryLabel}</span>
+          <h3>${escapeHtml(food.name)}</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-eighty-food">×</button>
+      </div>
+      <div class="eighty-food-section">
+        <span>На 100 г</span>
+        ${nutritionSummary(food, 100)}
+      </div>
+      <label class="field eighty-weight-field">
+        <span>Вес</span>
+        <input name="eightyAmount" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="done" value="${escapeHtml(eightyFoodDialog.amount)}">
+      </label>
+      <div class="eighty-food-section" data-eighty-food-total>
+        <span>Итого</span>
+        ${nutritionSummary(food, amount)}
+      </div>
+      <button class="primary-btn full-btn" type="button" data-action="add-eighty-food">${mealButtonLabel(entryDraft.meal)}</button>
+    </div>
+  </div>`;
+}
+
+function refreshEightyFoodTotal() {
+  if (!eightyFoodDialog) return;
+  const modal = app.querySelector(".eighty-food-modal");
+  const total = modal?.querySelector("[data-eighty-food-total]");
+  const food = eightyFoodById(eightyFoodDialog.foodId);
+  if (!total || !food) return;
+  const amount = Math.max(0, number(eightyFoodDialog.amount, 100));
+  total.innerHTML = `<span>Итого</span>${nutritionSummary(food, amount)}`;
+}
+
+function addEightyFoodToMeal() {
+  const food = eightyFoodById(eightyFoodDialog?.foodId);
+  if (!food) return;
+  const amount = number(eightyFoodDialog.amount);
+  if (amount <= 0) return toast("Введите вес");
+  const product = saveEightyProduct(food);
+  const meal = entryDraft.meal;
+  entriesForDate().push({
+    id: uid(),
+    meal,
+    productId: product.id,
+    label: product.name,
+    amount,
+    unit: "г",
+    nutrients: calcProduct(product, amount)
+  });
+  eightyFoodDialog = null;
+  addFoodSource = "mine";
+  blurActive();
+  persist();
+  render();
+  toast("✅ Добавлено в рацион");
+}
+
+function saveEightyImport(form) {
+  const data = new FormData(form);
+  for (const product of selectedEightyFoods()) {
+    const amount = optionalNumber(data.get(`eighty-${product.id}`) || eightyImport.items[product.id]);
+    eightyImport.items[product.id] = amount;
+  }
+  const selected = selectedEightyFoods().filter((product) => number(eightyImport.items[product.id]) > 0);
+  if (!selected.length) return toast("Введите вес");
+  const meal = entryDraft.meal || "breakfast";
+  for (const food of selected) {
+    const product = saveEightyProduct(food);
+    const amount = number(eightyImport.items[food.id]);
+    entriesForDate().push({
+      id: uid(),
+      meal,
+      productId: product.id,
+      label: product.name,
+      amount,
+      unit: "г",
+      nutrients: calcProduct(product, amount)
+    });
+  }
+  eightyImport = { items: {}, query: "" };
+  entryDraft = { meal, items: {} };
+  addPage = "home";
+  persist();
+  render();
+  toast("Продукты успешно добавлены.");
 }
 
 function mealCartPanel() {
@@ -1480,11 +2809,12 @@ function mealCartPanel() {
 function productChoiceCard(product) {
   const selected = hasDraftItem(product.id);
   const amount = entryDraft.items[product.id];
+  const label = product.kind === "dish" ? "🍽 Блюдо · на 100 г" : labels.productTypes[product.type];
   return `<article class="product-choice ${selected ? "selected" : ""}">
     <button class="product-choice-main" type="button" data-toggle-product="${product.id}">
       <span>
         <strong>${escapeHtml(product.name)}</strong>
-        <em>${labels.productTypes[product.type]}</em>
+        <em>${label}</em>
       </span>
       <b>${round(product.calories)} ккал</b>
     </button>
@@ -1497,6 +2827,10 @@ function productChoiceCard(product) {
 
 function manualProductForm() {
   return `<div class="panel">
+    <button class="create-dish-btn" type="button" data-action="open-dish-builder">
+      <span>🍽</span>
+      <strong>Создать блюдо</strong>
+    </button>
     <form class="form-grid" data-form="product">
       <div class="field full"><label>Название</label><input name="name" placeholder="Спагетти" enterkeyhint="next" required></div>
       <div class="field full"><label>Тип продукта</label><select name="type">${Object.entries(labels.productTypes).map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}</select></div>
@@ -1511,30 +2845,454 @@ function manualProductForm() {
   </div>`;
 }
 
+function createProductPage() {
+  return `
+    ${addBackHeader("Создать продукт")}
+    <div class="panel">
+      <form class="form-grid" data-form="product">
+        <div class="field full"><label>Название</label><input name="name" placeholder="Спагетти" enterkeyhint="next" required></div>
+        <div class="field full"><label>Тип продукта</label><select name="type">${Object.entries(labels.productTypes).map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}</select></div>
+        <div class="field"><label>Калории</label><input name="calories" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="ккал"></div>
+        <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
+        <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
+        <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
+        <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="100"></div>
+        <div class="field cooked-field"><label>Готовый вес, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="230"></div>
+        <div class="field full"><button class="primary-btn full-btn" type="submit">Сохранить продукт</button></div>
+      </form>
+    </div>`;
+}
+
+function dishBuilderPanel() {
+  const draft = ensureDishBuilder();
+  const totals = calcDish(builderDishDraft());
+  const results = ingredientSearchItems(draft.query);
+  return `
+    ${addBackHeader("Создать блюдо")}
+    <div class="panel dish-builder-panel">
+      <form class="form-grid" data-form="dish-create">
+      <div class="field full"><label>Название блюда</label><input name="dishName" value="${escapeHtml(draft.name)}" placeholder="Греческий салат" enterkeyhint="next" required></div>
+      <div class="field full"><label>Поиск продукта</label><div class="dish-search-row"><input class="search-input" name="dishSearch" data-dish-search value="${escapeHtml(draft.query)}" placeholder="🔍 Поиск продукта"><button class="icon-btn library-open-btn" type="button" data-action="open-ingredient-library" title="Библиотека">📚</button></div></div>
+      ${draft.query.trim() ? `<div class="field full dish-search-results">
+        ${results.length
+          ? results.map(dishSearchResult).join("")
+          : `<div class="empty-line">Ничего не найдено</div>`}
+      </div>` : ""}
+      <div class="field full">
+        <div class="dish-editor-head"><span>Ингредиенты</span></div>
+        <div class="dish-ingredient-list">${draft.ingredients.length ? draft.ingredients.map(builderIngredientRow).join("") : `<div class="empty-line">Добавьте ингредиенты через поиск</div>`}</div>
+      </div>
+      <div class="field full dish-summary">
+        <div><span>Общий вес блюда</span><b>${round(totals.totalWeight)} г</b></div>
+        <div><span>Общие КБЖУ</span><b>${round(totals.total.calories)} ккал · Белки ${round(totals.total.protein, 1)} г · Жиры ${round(totals.total.fat, 1)} г · Углеводы ${round(totals.total.carbs, 1)} г</b></div>
+        <div><span>КБЖУ на 100 г</span><b>${round(totals.per100.calories)} ккал · Б ${round(totals.per100.protein, 1)} · Ж ${round(totals.per100.fat, 1)} · У ${round(totals.per100.carbs, 1)}</b></div>
+      </div>
+      <div class="field full"><button class="primary-btn full-btn" type="submit">Сохранить блюдо</button></div>
+    </form>
+  </div>`;
+}
+
+function dishSearchResult(entry) {
+  const product = entry.product;
+  const label = "📦 Мои продукты";
+  return `<button class="dish-search-result" type="button" data-add-builder-product="${product.id}">
+    <span><strong>${escapeHtml(product.name)}</strong><em>${label}</em></span>
+    <b>${round(product.calories)} ккал</b>
+  </button>`;
+}
+
+function dishIngredientLibraryItems() {
+  const query = (ingredientPicker.query || "").trim().toLowerCase();
+  if (ingredientPicker.source === "eighty") {
+    if (!ingredientPicker.categoryId && !query) return [];
+    return userEightyFoods()
+      .filter((food) => !ingredientPicker.categoryId || food.categoryId === ingredientPicker.categoryId)
+      .filter((food) => !query || food.name.toLowerCase().includes(query));
+  }
+  return addMealItems()
+    .filter((item) => !query || item.name.toLowerCase().includes(query));
+}
+
+function selectedIngredientPickerItems() {
+  return Object.keys(ingredientPicker.items || {})
+    .map((id) => ingredientPicker.source === "eighty" ? eightyFoodById(id) : addMealItemById(id))
+    .filter(Boolean);
+}
+
+function dishIngredientLibraryPage() {
+  const items = dishIngredientLibraryItems();
+  const selectedCount = selectedIngredientPickerItems().length;
+  const category = eightyFoodCategories.find((item) => item.id === ingredientPicker.categoryId);
+  return `
+    ${addBackHeader("Выберите ингредиенты", "dish")}
+    <div class="add-meal-flow">
+      <div class="segmented food-source-segments">
+        <button class="${ingredientPicker.source === "mine" ? "active" : ""}" type="button" data-ingredient-source="mine">📦 Мои продукты</button>
+        <button class="${ingredientPicker.source === "eighty" ? "active" : ""}" type="button" data-ingredient-source="eighty">📚 База Eighty</button>
+      </div>
+      ${ingredientPicker.source === "eighty" && !ingredientPicker.categoryId && !ingredientPicker.query.trim() ? `<div class="eighty-category-list">
+        ${eightyFoodCategories.map((item) => `<button class="eighty-category-card" type="button" data-ingredient-category="${item.id}">
+          <span>${item.icon}</span>
+          <strong>${item.label}</strong>
+        </button>`).join("")}
+      </div>` : ""}
+      ${ingredientPicker.source === "eighty" && category ? `<button class="secondary-btn compact-back" type="button" data-ingredient-category="">← ${category.icon} ${category.label}</button>` : ""}
+      <input class="search-input" data-ingredient-picker-query value="${escapeHtml(ingredientPicker.query || "")}" placeholder="Поиск">
+      ${ingredientPicker.source === "mine" || ingredientPicker.categoryId || ingredientPicker.query.trim() ? `<div class="product-choice-list">
+        ${items.length
+          ? items.map(ingredientPickerCard).join("")
+          : `<div class="big-empty compact-empty"><div><strong>Ничего не найдено</strong><span>${ingredientPicker.source === "eighty" ? "Выберите категорию или измените поиск." : "Здесь отображаются только ваши продукты и блюда."}</span></div></div>`}
+      </div>` : ""}
+      ${selectedCount ? `<button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="button" data-action="ingredient-picker-next">Добавить (${selectedCount})</button>` : ""}
+    </div>`;
+}
+
+function ingredientPickerCard(item) {
+  const selected = Object.prototype.hasOwnProperty.call(ingredientPicker.items, item.id);
+  const label = ingredientPicker.source === "eighty"
+    ? `${item.categoryIcon} ${item.categoryLabel}`
+    : item.kind === "dish" ? "🍽 Блюдо" : "📦 Продукт";
+  return `<article class="product-choice ration-choice ${selected ? "selected" : ""}">
+    <button class="product-choice-main" type="button" data-toggle-ingredient-picker="${item.id}">
+      <span>
+        <strong>${escapeHtml(item.name)}</strong>
+        <em>${label} · ${round(item.calories)} ккал на 100 г</em>
+      </span>
+      <b>${round(item.calories)} ккал</b>
+      ${selected ? `<i class="choice-check">✓</i>` : ""}
+    </button>
+  </article>`;
+}
+
+function dishIngredientAmountsPage() {
+  const items = selectedIngredientPickerItems();
+  const complete = items.length && items.every((item) => number(ingredientPicker.items[item.id]) > 0);
+  return `
+    ${addBackHeader("Вес ингредиентов", "dish-library")}
+    <form class="add-meal-flow" data-form="dish-ingredient-add">
+      <div class="product-choice-list">
+        ${items.length ? items.map(ingredientPickerAmountCard).join("") : `<div class="empty-line">Выберите ингредиенты</div>`}
+      </div>
+      <button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="submit" ${complete ? "" : "disabled"}>Добавить в блюдо</button>
+    </form>`;
+}
+
+function ingredientPickerAmountCard(item) {
+  return `<article class="product-choice selected">
+    <div class="product-choice-main static-choice">
+      <span>
+        <strong>${escapeHtml(item.name)}</strong>
+        <em>Вес</em>
+      </span>
+      <b>${round(item.calories)} ккал</b>
+    </div>
+    <div class="product-choice-amount">
+      <label for="ingredient-picker-${item.id}">Вес, г</label>
+      <input id="ingredient-picker-${item.id}" name="ingredient-${item.id}" data-ingredient-picker-amount="${item.id}" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="250" value="${escapeHtml(ingredientPicker.items[item.id])}">
+    </div>
+  </article>`;
+}
+
+function builderIngredientRow(ingredient) {
+  const product = ingredientItemById(ingredient.productId);
+  if (!product) return "";
+  return `<div class="builder-ingredient-row" data-builder-ingredient="${ingredient.id}">
+    <div><strong>${escapeHtml(product.name)}</strong><span>${round(product.calories)} ккал на 100 г</span></div>
+    <input name="builderIngredientAmount" type="number" min="1" step="0.1" inputmode="decimal" value="${ingredient.amount || ""}" placeholder="г">
+    <button class="icon-btn compact" type="button" data-remove-builder-ingredient="${ingredient.id}" title="Удалить">${icons.trash}</button>
+  </div>`;
+}
+
 function screenFavorites() {
-  const products = filteredFavorites();
+  if (favoritesPage === "eighty") return screenFavoritesEightyCategories();
+  if (favoritesPage === "eighty-category") return screenFavoritesEightyCategory();
+  const query = favoritesQuery.trim();
+  const items = userLibraryItems(query);
   return `<section class="screen ${activeScreen === "favorites" ? "active" : ""}">
     <div class="stack">
-      <header class="screen-header"><h1>Избранное</h1><p>Ваш личный каталог продуктов</p></header>
+      <header class="screen-header"><h1>Мои продукты</h1><p>Ваша личная библиотека продуктов и блюд</p></header>
       <div class="favorites-tools">
-        <input class="search-input" data-favorites-query value="${escapeHtml(favoritesQuery)}" placeholder="Поиск">
+        <div class="dish-search-row"><input class="search-input" data-favorites-query value="${escapeHtml(favoritesQuery)}" placeholder="Поиск"><button class="icon-btn library-open-btn" type="button" data-favorites-page="eighty" title="База Eighty">📚</button></div>
         <div class="segmented sort-segments">
           <button class="${favoritesSort === "az" ? "active" : ""}" type="button" data-favorites-sort="az">А-Я</button>
           <button class="${favoritesSort === "za" ? "active" : ""}" type="button" data-favorites-sort="za">Я-А</button>
         </div>
       </div>
-      <div class="list" data-favorites-list>${products.length ? products.map(productRow).join("") : `<div class="empty big-empty">Пока ничего не добавлено.</div>`}</div>
+      <div class="list" data-favorites-list>${items.length ? items.map(libraryRow).join("") : `<div class="empty big-empty">${query ? "Ничего не найдено." : "Пока ничего не добавлено."}</div>`}</div>
     </div>
   </section>`;
 }
 
+function favoritesBackHeader(title, backPage = "home") {
+  return `<header class="screen-header add-subpage-head">
+    <button class="back-link" type="button" data-favorites-page="${backPage}">← Назад</button>
+    <h1>${title}</h1>
+  </header>`;
+}
+
+function screenFavoritesEightyCategories() {
+  return `<section class="screen ${activeScreen === "favorites" ? "active" : ""}">
+    <div class="stack">
+      ${favoritesBackHeader("База Eighty")}
+      <div class="eighty-category-list">
+        ${eightyFoodCategories.map((category) => `<button class="eighty-category-card" type="button" data-favorites-eighty-category="${category.id}">
+          <span>${category.icon}</span>
+          <strong>${category.label}</strong>
+        </button>`).join("")}
+      </div>
+    </div>
+  </section>`;
+}
+
+function favoriteEightyProducts(categoryId) {
+  const query = favoritesEightyQuery.trim().toLowerCase();
+  return userEightyFoods()
+    .filter((food) => food.categoryId === categoryId)
+    .filter((food) => !query || food.name.toLowerCase().includes(query))
+    .sort((a, b) => favoritesSort === "za"
+      ? b.name.localeCompare(a.name, "ru")
+      : a.name.localeCompare(b.name, "ru"));
+}
+
+function screenFavoritesEightyCategory() {
+  const category = eightyFoodCategories.find((item) => item.id === favoritesEightyCategoryId) || eightyFoodCategories[0];
+  const products = favoriteEightyProducts(category.id);
+  return `<section class="screen ${activeScreen === "favorites" ? "active" : ""}">
+    <div class="stack">
+      ${favoritesBackHeader(`${category.icon} ${category.label}`, "eighty")}
+      <input class="search-input" data-favorites-eighty-query value="${escapeHtml(favoritesEightyQuery)}" placeholder="Поиск">
+      <div class="product-choice-list">
+        ${products.length
+          ? products.map(favoriteEightyCard).join("")
+          : `<div class="empty big-empty">Ничего не найдено.</div>`}
+      </div>
+    </div>
+  </section>`;
+}
+
+function favoriteEightyCard(product) {
+  return `<article class="product-choice eighty-product">
+    <button class="product-choice-main" type="button" data-edit-eighty-product="${product.id}">
+      <span>
+        <strong>${escapeHtml(product.name)}</strong>
+        <em>${product.categoryIcon} ${product.categoryLabel} · на 100 г</em>
+      </span>
+      <b>${round(product.calories)} ккал</b>
+    </button>
+    <div class="eighty-macro-line">
+      <span>Б ${round(product.protein, 1)}</span>
+      <span>Ж ${round(product.fat, 1)}</span>
+      <span>У ${round(product.carbs, 1)}</span>
+    </div>
+  </article>`;
+}
+
+function libraryRow(entry) {
+  return entry.kind === "dish" ? dishRow(entry.item) : productRow(entry.item);
+}
+
 function productRow(product) {
   return `<div class="product-row item-card">
-    <div>
-      <strong>${escapeHtml(product.name)}</strong>
-      <span>${labels.productTypes[product.type]} · ${round(product.calories)} ккал · Б ${round(product.protein)} Ж ${round(product.fat)} У ${round(product.carbs)}</span>
+    <button class="library-card-main" type="button" data-edit-product="${product.id}">
+      <strong>📦 ${escapeHtml(product.name)}</strong>
+      <span>Продукт · ${labels.productTypes[product.type]} · ${round(product.calories)} ккал · Б ${round(product.protein)} Ж ${round(product.fat)} У ${round(product.carbs)}</span>
+    </button>
+    <button class="icon-btn compact" data-confirm-delete-product="${product.id}" title="Удалить">${icons.trash}</button>
+  </div>`;
+}
+
+function dishRow(dish) {
+  const totals = calcDish(dish);
+  return `<div class="product-row item-card">
+    <button class="library-card-main" type="button" data-edit-dish="${dish.id}">
+      <strong>🍽 ${escapeHtml(dish.name || "Блюдо")}</strong>
+      <span>Блюдо · ${round(totals.totalWeight)} г · ${round(totals.per100.calories)} ккал на 100 г · ${totals.ingredients.length} ингредиентов</span>
+    </button>
+    <button class="icon-btn compact" data-confirm-delete-dish="${dish.id}" title="Удалить">${icons.trash}</button>
+  </div>`;
+}
+
+function openProductEditor(id) {
+  const product = state.products.find((item) => item.id === id);
+  if (!product) return;
+  libraryEditor = { kind: "product", id, draft: { ...product } };
+  render();
+}
+
+function openDishEditor(id) {
+  const dish = state.dishes.find((item) => item.id === id);
+  if (!dish) return;
+  libraryEditor = {
+    kind: "dish",
+    id,
+    draft: {
+      ...dish,
+      ingredients: (dish.ingredients || []).map((ingredient) => ({ ...ingredient }))
+    }
+  };
+  render();
+}
+
+function openEightyEditor(id) {
+  const product = eightyFoodById(id);
+  if (!product) return;
+  libraryEditor = { kind: "eighty", id, draft: { ...product } };
+  render();
+}
+
+function productEditModal() {
+  const product = libraryEditor?.draft;
+  if (!product) return "";
+  return `<div class="modal-backdrop" data-modal-close="library-editor">
+    <div class="modal-card library-edit-modal" role="dialog" aria-modal="true" aria-label="Редактирование продукта">
+      <div class="modal-head">
+        <div>
+          <span>📦 Продукт</span>
+          <h3>${escapeHtml(product.name || "Продукт")}</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-library-editor">×</button>
+      </div>
+      <form class="form-grid" data-form="product-edit">
+        <input type="hidden" name="id" value="${product.id}">
+        <div class="field full"><label>Название</label><input name="name" value="${escapeHtml(product.name || "")}" required></div>
+        <div class="field full"><label>Тип продукта</label><select name="type">${Object.entries(labels.productTypes).map(([id, label]) => option(id, label, product.type)).join("")}</select></div>
+        <div class="field"><label>Калории</label><input name="calories" type="number" step="0.1" inputmode="decimal" value="${product.calories || ""}"></div>
+        <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" value="${product.protein || ""}"></div>
+        <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" value="${product.fat || ""}"></div>
+        <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" value="${product.carbs || ""}"></div>
+        <div class="modal-actions field full">
+          <button class="danger-btn" type="button" data-confirm-delete-product="${product.id}">Удалить</button>
+          <button class="primary-btn" type="submit">Сохранить</button>
+        </div>
+      </form>
     </div>
-    <button class="icon-btn compact" data-delete-product="${product.id}" title="Удалить">${icons.trash}</button>
+  </div>`;
+}
+
+function eightyEditModal() {
+  const product = libraryEditor?.draft;
+  if (!product) return "";
+  return `<div class="modal-backdrop" data-modal-close="library-editor">
+    <div class="modal-card library-edit-modal" role="dialog" aria-modal="true" aria-label="Редактирование продукта базы Eighty">
+      <div class="modal-head">
+        <div>
+          <span>${product.categoryIcon} ${product.categoryLabel}</span>
+          <h3>${escapeHtml(product.name || "Продукт")}</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-library-editor">×</button>
+      </div>
+      <form class="form-grid" data-form="eighty-edit">
+        <input type="hidden" name="id" value="${product.id}">
+        <div class="field full"><label>Название</label><input name="name" value="${escapeHtml(product.name || "")}" required></div>
+        <div class="field"><label>Калории</label><input name="calories" type="number" step="0.1" inputmode="decimal" value="${product.calories || ""}"></div>
+        <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" value="${product.protein || ""}"></div>
+        <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" value="${product.fat || ""}"></div>
+        <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" value="${product.carbs || ""}"></div>
+        <div class="modal-actions field full">
+          <button class="danger-btn" type="button" data-confirm-delete-eighty="${product.id}">Удалить</button>
+          <button class="primary-btn" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+}
+
+function dishEditModal() {
+  const dish = libraryEditor?.draft;
+  if (!dish) return "";
+  const totals = calcDish(dish);
+  return `<div class="modal-backdrop" data-modal-close="library-editor">
+    <div class="modal-card library-edit-modal dish-edit-modal" role="dialog" aria-modal="true" aria-label="Редактирование блюда">
+      <div class="modal-head">
+        <div>
+          <span>🍽 Блюдо</span>
+          <h3>${escapeHtml(dish.name || "Блюдо")}</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-library-editor">×</button>
+      </div>
+      <form class="form-grid" data-form="dish-edit">
+        <input type="hidden" name="id" value="${dish.id}">
+        <div class="field full"><label>Название блюда</label><input name="name" value="${escapeHtml(dish.name || "")}" required></div>
+        <div class="field full">
+          <div class="dish-editor-head"><span>Ингредиенты</span><button class="secondary-btn compact-back" type="button" data-action="add-dish-ingredient">Добавить ингредиент</button></div>
+          <div class="dish-ingredient-list">${dish.ingredients.length ? dish.ingredients.map(dishIngredientRow).join("") : `<div class="empty-line">Ингредиентов пока нет</div>`}</div>
+        </div>
+        <div class="field full dish-summary">
+          <div><span>Общий вес</span><b>${round(totals.totalWeight)} г</b></div>
+          <div><span>Всего</span><b>${round(totals.total.calories)} ккал · Б ${round(totals.total.protein, 1)} Ж ${round(totals.total.fat, 1)} У ${round(totals.total.carbs, 1)}</b></div>
+          <div><span>На 100 г</span><b>${round(totals.per100.calories)} ккал · Б ${round(totals.per100.protein, 1)} Ж ${round(totals.per100.fat, 1)} У ${round(totals.per100.carbs, 1)}</b></div>
+        </div>
+        <div class="modal-actions field full">
+          <button class="secondary-btn" type="button" data-action="close-library-editor">Отмена</button>
+          <button class="primary-btn" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+}
+
+function dishIngredientRow(ingredient) {
+  const options = addMealItems().map((item) => option(item.id, item.kind === "dish" ? `🍽 ${item.name}` : item.name, ingredient.productId)).join("");
+  return `<div class="dish-ingredient-row" data-dish-ingredient="${ingredient.id}">
+    <select name="ingredientProduct">${options}</select>
+    <input name="ingredientAmount" type="number" min="1" step="0.1" inputmode="decimal" value="${ingredient.amount || ""}" placeholder="г">
+    <button class="icon-btn compact" type="button" data-remove-dish-ingredient="${ingredient.id}" title="Удалить">${icons.trash}</button>
+  </div>`;
+}
+
+function deleteConfirmModal() {
+  if (!deleteConfirm) return "";
+  const isDish = deleteConfirm.kind === "dish";
+  const isWeight = deleteConfirm.kind === "weight";
+  const isEighty = deleteConfirm.kind === "eighty";
+  return `<div class="modal-backdrop" data-modal-close="delete-confirm">
+    <div class="modal-card confirm-modal" role="dialog" aria-modal="true" aria-label="Подтверждение удаления">
+      <div class="modal-head">
+        <div>
+          <span>${isWeight ? "⚖ Вес" : isDish ? "🍽 Блюдо" : isEighty ? "📚 База Eighty" : "📦 Продукт"}</span>
+          <h3>${isWeight ? "Удалить запись веса?" : isDish ? "Удалить блюдо?" : isEighty ? "Удалить продукт из вашей базы?" : "Удалить продукт?"}</h3>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" data-action="cancel-delete">Отмена</button>
+        <button class="danger-btn" type="button" data-action="confirm-delete">Удалить</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function accountDeleteModal() {
+  const items = ["Профиль", "История веса", "Дневник питания", "История воды", "Продукты", "Блюда", "Достижения", "Аналитика", "Настройки"];
+  return `<div class="modal-backdrop" data-modal-close="account-delete">
+    <div class="modal-card account-delete-modal" role="dialog" aria-modal="true" aria-label="Удалить аккаунт">
+      <div class="modal-head">
+        <div>
+          <span>Сброс данных</span>
+          <h3>Удалить аккаунт?</h3>
+        </div>
+      </div>
+      <div class="account-delete-copy">
+        <p>Это действие нельзя отменить.</p>
+        <p>Будут безвозвратно удалены все ваши данные и настройки.</p>
+      </div>
+      <div class="account-delete-list">
+        ${items.map((item) => `<span>• ${item}</span>`).join("")}
+      </div>
+      <div class="modal-actions account-delete-actions">
+        <button class="secondary-btn" type="button" data-action="cancel-account-delete" autofocus>Отмена</button>
+        <button class="danger-btn" type="button" data-action="confirm-account-delete">Удалить аккаунт</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function accountDeletingOverlay() {
+  return `<div class="account-delete-busy" role="status" aria-live="polite">
+    <div>
+      <i></i>
+      <strong>Удаляем аккаунт</strong>
+      <span>Очищаем данные и настройки...</span>
+    </div>
   </div>`;
 }
 
@@ -1553,10 +3311,11 @@ function screenProfile(targets) {
       <div class="profile-actions panel">
         <button class="secondary-btn" type="button" data-action="profile-details">Основные данные</button>
         <button class="secondary-btn" type="button" data-action="achievements">Достижения</button>
+        <button class="secondary-btn profile-action-wide" type="button" data-action="weight-history">История веса</button>
       </div>
-      ${weightQuickPanel()}
       ${targetsPanel(targets)}
       ${profileWaterPanel()}
+      ${accountDeletePanel()}
       <div class="profile-app-info">
         <span>Eighty v2.2.0</span>
         <span>© 2026 by Егор Галкин</span>
@@ -1566,9 +3325,10 @@ function screenProfile(targets) {
 }
 
 function profileCard(targets) {
-  const name = currentUser.name || state.profile.name || "Пользователь";
-  const photo = currentUser.photoUrl || state.telegram.photoUrl;
+  const name = state.profile.name || currentUser.name || "Пользователь";
+  const photo = state.telegram.photoUrl || currentUser.photoUrl;
   const goal = state.profile.targetMode === "manual" ? "Ручной КБЖУ" : labels.goals[state.profile.goalMode];
+  const registrationDate = formatRegistrationDate(state.createdAt);
   const current = currentWeight();
   const start = startWeight();
   const target = number(state.profile.targetWeight);
@@ -1580,8 +3340,8 @@ function profileCard(targets) {
       <div>
         <span>Имя пользователя</span>
         <h2>${escapeHtml(name)}</h2>
-        <p>Текущая цель: ${goal}</p>
-        <p>Дневная цель: ${targetValue(targets.calories, "ккал")}</p>
+        <p>Текущая цель: ${goal} • ${targetValue(targets.calories, "ккал")}</p>
+        <p>Дата регистрации: ${registrationDate}</p>
       </div>
     </div>
     <div class="weight-goal-grid">
@@ -1593,55 +3353,60 @@ function profileCard(targets) {
   </div>`;
 }
 
-function weightRows() {
-  return sortedWeightLogs().sort((a, b) => weightEntryTimestamp(b) - weightEntryTimestamp(a));
+function accountDeletePanel() {
+  return `<div class="account-delete-panel">
+    <button class="account-delete-btn" type="button" data-action="open-account-delete">🗑 Удалить аккаунт</button>
+  </div>`;
 }
 
-function weightQuickPanel() {
-  const rows = weightRows();
-  return `<div class="panel">
-    <div class="section-title"><h2>Вес</h2><span>${rows.length} записей</span></div>
-    <div class="weight-summary-grid">
-      ${smallStat("Начальный", startWeight() > 0 ? `${round(startWeight(), 1)} кг` : "—")}
-      ${smallStat("Текущий", currentWeight() > 0 ? `${round(currentWeight(), 1)} кг` : "—")}
-      ${smallStat("Потеря", `${round(weightLost(), 1)} кг`)}
-    </div>
-    <div class="form-grid weight-add-form" data-weight-form>
-      <div class="field"><label>Дата</label><input name="date" type="date" value="${todayIso()}"></div>
-      <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" placeholder="98"></div>
-      <div class="field full"><button class="secondary-btn" type="button" data-action="add-weight">Добавить вес</button></div>
-    </div>
-    <button class="secondary-btn full-btn" type="button" data-action="weight-history">История веса</button>
-  </div>`;
+function weightRows() {
+  return sortedWeightLogs();
 }
 
 function weightHistoryModal() {
   const rows = weightRows();
   return `<div class="modal-backdrop" data-modal-close="weight-history">
-    <div class="modal-card" role="dialog" aria-modal="true" aria-label="История веса">
-      <div class="modal-head">
+    <div class="modal-card weight-history-modal" role="dialog" aria-modal="true" aria-label="История веса">
+      <div class="modal-head weight-history-head">
         <div>
           <span>${rows.length} записей</span>
           <h3>История веса</h3>
         </div>
+        <button class="secondary-btn weight-add-open" type="button" data-action="open-weight-add">+ Добавить вес</button>
         <button class="icon-btn compact neutral" type="button" data-action="close-weight-history">×</button>
       </div>
-    <div class="weight-history-list">
-      ${rows.length ? rows.map(weightHistoryRow).join("") : `<div class="empty-line">История веса пока пустая</div>`}
-    </div>
+      ${weightEditor ? weightEntryForm() : ""}
+      <div class="weight-history-list">
+        ${rows.length ? rows.map(weightHistoryRow).join("") : `<div class="empty-line">История веса пока пустая</div>`}
+      </div>
     </div>
   </div>`;
 }
 
-function weightHistoryRow(item) {
-  return `<div class="weight-row">
-    <div>
-      <strong>${formatDate(item.date)}</strong>
-      <span>${formatDateTime(weightEntryTime(item))}</span>
+function weightEntryForm() {
+  const isEdit = weightEditor?.mode === "edit";
+  return `<form class="form-grid weight-entry-form" data-form="weight-entry">
+    <input type="hidden" name="id" value="${escapeHtml(weightEditor?.id || "")}">
+    <div class="field"><label>Дата</label><input name="date" type="date" value="${escapeHtml(weightEditor?.date || todayIso())}" required></div>
+    <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${escapeHtml(weightEditor?.weight || "")}" placeholder="98" required></div>
+    <div class="modal-actions field full">
+      <button class="secondary-btn" type="button" data-action="close-weight-editor">Отмена</button>
+      <button class="primary-btn" type="submit">${isEdit ? "Сохранить" : "Сохранить"}</button>
     </div>
-    <b>${round(item.weight, 1)} кг</b>
-    <button class="icon-btn compact" type="button" data-delete-weight="${item.id}" title="Удалить">${icons.trash}</button>
-  </div>`;
+  </form>`;
+}
+
+function weightHistoryRow(item) {
+  const first = sortedWeightLogs()[0];
+  const isInitial = first?.id === item.id;
+  return `<article class="weight-history-card">
+    <button class="weight-history-main" type="button" data-edit-weight="${item.id}">
+      <span>${formatDate(item.date)}</span>
+      ${isInitial ? `<em>Начальный вес</em>` : ""}
+      <strong>${round(item.weight, 1)} кг</strong>
+    </button>
+    <button class="icon-btn compact" type="button" data-confirm-delete-weight="${item.id}" title="Удалить">${icons.trash}</button>
+  </article>`;
 }
 
 function achievementsPanel() {
@@ -1697,7 +3462,13 @@ function achievementsModal(earnedOnly = false) {
 function targetsPanel(targets) {
   const p = state.profile;
   return `<form class="panel" data-form="targets">
-    <div class="section-title"><h2>КБЖУ</h2><span>${!targets.complete ? "Заполните данные" : targets.manual ? "Ручной режим" : `BMR ${round(targets.bmr)} ккал`}</span></div>
+    <div class="section-title nutrition-title">
+      <h2>КБЖУ</h2>
+      <div class="section-title-actions">
+        <span>${!targets.complete ? "Заполните данные" : targets.manual ? "Ручной режим" : `BMR ${round(targets.bmr)} ккал`}</span>
+        <button class="icon-btn compact neutral nutrition-info-btn" type="button" data-action="nutrition-info" title="О расчёте КБЖУ" aria-label="О расчёте КБЖУ">ℹ️</button>
+      </div>
+    </div>
     <div class="segmented">
       <label><input type="radio" name="targetMode" value="auto" ${p.targetMode !== "manual" ? "checked" : ""}>Автоматический расчёт</label>
       <label><input type="radio" name="targetMode" value="manual" ${p.targetMode === "manual" ? "checked" : ""}>Ручной режим</label>
@@ -1751,6 +3522,76 @@ function targetCards(targets) {
     ${smallStat("Углеводы", targetValue(targets.carbs, "г"))}`;
 }
 
+function profileMetric(value, unit) {
+  const numeric = number(value);
+  return numeric > 0 ? `${round(numeric)} ${unit}` : "—";
+}
+
+function yearsText(value) {
+  const age = number(value);
+  if (age <= 0) return "—";
+  const mod10 = age % 10;
+  const mod100 = age % 100;
+  const word = mod10 === 1 && mod100 !== 11
+    ? "год"
+    : mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)
+      ? "года"
+      : "лет";
+  return `${round(age)} ${word}`;
+}
+
+function nutritionInfoRow(icon, title, value, description) {
+  return `<div class="nutrition-info-row">
+    <div class="nutrition-icon">${icon}</div>
+    <div>
+      <div class="nutrition-row-head"><strong>${title}</strong><b>${value}</b></div>
+      <p>${description}</p>
+    </div>
+  </div>`;
+}
+
+function nutritionDataRow(label, value) {
+  return `<div><span>${label}</span><b>${value}</b></div>`;
+}
+
+function nutritionInfoModal(targets) {
+  const p = state.profile;
+  const modes = calcAutoNutritionModes();
+  const currentMode = labels.goals[p.goalMode] || "Похудение";
+  const rows = [
+    ["⚡", "BMR", targetValue(modes.bmr, "ккал"), "Калории в состоянии покоя."],
+    ["=", "Поддержание", targetValue(modes.maintenance, "ккал"), "Норма для сохранения текущего веса."],
+    ["↓", "Похудение", targetValue(modes.loss, "ккал"), "Рекомендуемая норма для снижения веса."],
+    ["↑", "Набор массы", targetValue(modes.gain, "ккал"), "Рекомендуемая норма для набора веса."],
+    ["◎", "Текущий режим", currentMode, "Выбранная цель в профиле."],
+    ["80", "Текущая норма", targetValue(targets.calories, "ккал"), "Фактическая норма в приложении."]
+  ];
+
+  return `<div class="modal-backdrop" data-modal-close="nutrition-info">
+    <div class="modal-card nutrition-info-modal" role="dialog" aria-modal="true" aria-label="Расчёт КБЖУ">
+      <div class="modal-head nutrition-info-head">
+        <div>
+          <span>Расчёт нормы</span>
+          <h3>КБЖУ</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-nutrition-info">×</button>
+      </div>
+      <div class="nutrition-info-list">
+        ${rows.map((row) => nutritionInfoRow(...row)).join("")}
+      </div>
+      <div class="nutrition-data">
+        <h4>Ваши данные</h4>
+        <div class="nutrition-data-grid">
+          ${nutritionDataRow("Вес", profileMetric(currentWeight(), "кг"))}
+          ${nutritionDataRow("Рост", profileMetric(p.height, "см"))}
+          ${nutritionDataRow("Возраст", yearsText(p.age))}
+          ${nutritionDataRow("Активность", labels.activities[p.activity] || "Не выбрана")}
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function profileDetailsModal() {
   const p = state.profile;
   return `<div class="modal-backdrop" data-modal-close="profile-details">
@@ -1767,7 +3608,6 @@ function profileDetailsModal() {
         <div class="field"><label>Возраст</label><input name="age" type="number" inputmode="numeric" value="${p.age || ""}" placeholder="28" enterkeyhint="next"></div>
         <div class="field"><label>Пол</label><select name="sex">${option("", "Не выбран", p.sex)}${option("female", "Женский", p.sex)}${option("male", "Мужской", p.sex)}${option("other", "Другой", p.sex)}</select></div>
         <div class="field"><label>Рост, см</label><input name="height" type="number" inputmode="numeric" value="${p.height || ""}" placeholder="170" enterkeyhint="next"></div>
-        <div class="field"><label>Начальный вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${p.weight || ""}" placeholder="99" enterkeyhint="next"></div>
         <div class="field"><label>Цель, кг</label><input name="targetWeight" type="number" inputmode="decimal" step="0.1" value="${p.targetWeight || ""}" placeholder="80" enterkeyhint="next"></div>
         <input type="hidden" name="goalMode" value="${p.goalMode || "loss"}">
         <input type="hidden" name="activity" value="${p.activity || ""}">
@@ -1824,7 +3664,14 @@ app.addEventListener("submit", (event) => {
   if (type === "water") addWaterManual(form);
   if (type === "water-history") saveWaterHistory(form);
   if (type === "profile") saveProfile(form);
-  if (type === "weight") addWeight(form);
+  if (type === "weight-entry") saveWeightEntry(form);
+  if (type === "product-edit") saveProductEdit(form);
+  if (type === "eighty-edit") saveEightyEdit(form);
+  if (type === "dish-edit") saveDishEdit(form);
+  if (type === "dish-create") saveDishCreate(form);
+  if (type === "dish-ingredient-add") addPickedIngredientsToDish(form);
+  if (type === "eighty-import") saveEightyImport(form);
+  if (type === "onboarding") advanceOnboarding(form);
 });
 
 app.addEventListener("click", (event) => {
@@ -1835,12 +3682,58 @@ app.addEventListener("click", (event) => {
   }
   const button = event.target.closest("button");
   if (!button) return;
+  if (accountDeleteBusy) return;
   if (button.dataset.keyboardDone) {
     blurActive();
     setKeyboardMode(false);
     return;
   }
+  if (button.dataset.action === "onboarding-start") {
+    onboardingStep = 2;
+    render();
+    focusOnboardingField();
+    return;
+  }
+  if (button.dataset.action === "onboarding-back") {
+    goBackOnboarding();
+    return;
+  }
+  if (button.dataset.onboardingGoal) {
+    selectOnboardingGoal(button.dataset.onboardingGoal);
+    return;
+  }
+  if (button.dataset.onboardingActivity) {
+    selectOnboardingActivity(button.dataset.onboardingActivity);
+    return;
+  }
+  if (button.dataset.action === "onboarding-next") {
+    advanceOnboarding(button.closest("form"));
+    return;
+  }
+  if (button.dataset.action === "onboarding-finish") {
+    finishOnboarding();
+    return;
+  }
   if (button.dataset.screen) setScreen(button.dataset.screen);
+  if (button.dataset.favoritesPage) {
+    favoritesPage = button.dataset.favoritesPage;
+    if (favoritesPage === "home") {
+      favoritesEightyCategoryId = "";
+      favoritesEightyQuery = "";
+    }
+    if (favoritesPage === "eighty") favoritesEightyQuery = "";
+    render();
+  }
+  if (button.dataset.favoritesEightyCategory) {
+    favoritesEightyCategoryId = button.dataset.favoritesEightyCategory;
+    favoritesEightyQuery = "";
+    favoritesPage = "eighty-category";
+    render();
+  }
+  if (button.dataset.addPage) {
+    setAddPage(button.dataset.addPage);
+    return;
+  }
   if (button.dataset.action === "prev-date") changeDate(-1);
   if (button.dataset.action === "next-date") changeDate(1);
   if (button.dataset.action === "recalculate") {
@@ -1854,12 +3747,10 @@ app.addEventListener("click", (event) => {
       recalculateProfile(form);
     }
   }
-  if (button.dataset.action === "add-weight") {
-    if (skipNextAddWeightClick) {
-      skipNextAddWeightClick = false;
-      return;
-    }
-    handleAddWeightButton(button);
+  if (button.dataset.action === "open-weight-add") openWeightAdd();
+  if (button.dataset.action === "close-weight-editor") {
+    weightEditor = null;
+    render();
   }
   if (button.dataset.action === "water-history") {
     waterHistoryOpen = true;
@@ -1867,6 +3758,10 @@ app.addEventListener("click", (event) => {
   }
   if (button.dataset.action === "profile-details") {
     profileDetailsOpen = true;
+    render();
+  }
+  if (button.dataset.action === "nutrition-info") {
+    nutritionInfoOpen = true;
     render();
   }
   if (button.dataset.action === "weight-history") {
@@ -1881,6 +3776,18 @@ app.addEventListener("click", (event) => {
     earnedAchievementsOpen = true;
     render();
   }
+  if (button.dataset.action === "open-account-delete") {
+    accountDeleteOpen = true;
+    render();
+  }
+  if (button.dataset.action === "cancel-account-delete") {
+    accountDeleteOpen = false;
+    render();
+  }
+  if (button.dataset.action === "confirm-account-delete") {
+    deleteAccount();
+    return;
+  }
   if (button.dataset.action === "close-water-history") {
     waterHistoryOpen = false;
     render();
@@ -1889,8 +3796,13 @@ app.addEventListener("click", (event) => {
     profileDetailsOpen = false;
     render();
   }
+  if (button.dataset.action === "close-nutrition-info") {
+    nutritionInfoOpen = false;
+    render();
+  }
   if (button.dataset.action === "close-weight-history") {
     weightHistoryOpen = false;
+    weightEditor = null;
     render();
   }
   if (button.dataset.action === "close-achievements") {
@@ -1905,8 +3817,27 @@ app.addEventListener("click", (event) => {
   if (button.dataset.water) addWater(number(button.dataset.water));
   if (button.dataset.deleteEntry) deleteEntry(button.dataset.deleteEntry);
   if (button.dataset.deleteProduct) deleteProduct(button.dataset.deleteProduct);
+  if (button.dataset.confirmDeleteProduct) {
+    deleteConfirm = { kind: "product", id: button.dataset.confirmDeleteProduct };
+    render();
+  }
+  if (button.dataset.confirmDeleteDish) {
+    deleteConfirm = { kind: "dish", id: button.dataset.confirmDeleteDish };
+    render();
+  }
+  if (button.dataset.editProduct) openProductEditor(button.dataset.editProduct);
+  if (button.dataset.editDish) openDishEditor(button.dataset.editDish);
+  if (button.dataset.editEightyProduct) openEightyEditor(button.dataset.editEightyProduct);
+  if (button.dataset.editWeight) openWeightEditor(button.dataset.editWeight);
   if (button.dataset.deleteWater) deleteWaterEntry(button.dataset.deleteWater);
-  if (button.dataset.deleteWeight) deleteWeight(button.dataset.deleteWeight);
+  if (button.dataset.confirmDeleteWeight) {
+    deleteConfirm = { kind: "weight", id: button.dataset.confirmDeleteWeight };
+    render();
+  }
+  if (button.dataset.confirmDeleteEighty) {
+    deleteConfirm = { kind: "eighty", id: button.dataset.confirmDeleteEighty };
+    render();
+  }
   if (button.dataset.range) {
     analyticsRange = button.dataset.range;
     render();
@@ -1917,11 +3848,146 @@ app.addEventListener("click", (event) => {
   }
   if (button.dataset.addPanel) {
     addPanelMode = button.dataset.addPanel;
+    if (addPanelMode === "existing") {
+      addFoodSource = "mine";
+      eightyCategoryId = "";
+    }
+    render();
+  }
+  if (button.dataset.action === "ration-next") {
+    if (!selectedMealItems().length) return toast("Выберите продукты");
+    addPage = "ration-amounts";
+    render();
+  }
+  if (button.dataset.openEightyCategory) {
+    eightyCategoryId = button.dataset.openEightyCategory;
+    eightyImport.query = "";
+    addPage = "eighty-category";
+    render();
+  }
+  if (button.dataset.toggleEightyImport) {
+    const id = button.dataset.toggleEightyImport;
+    if (Object.prototype.hasOwnProperty.call(eightyImport.items, id)) delete eightyImport.items[id];
+    else eightyImport.items[id] = "";
+    render();
+  }
+  if (button.dataset.action === "eighty-import-next") {
+    if (!selectedEightyFoods().length) return toast("Выберите продукты");
+    addPage = "eighty-amounts";
+    render();
+  }
+  if (button.dataset.action === "open-dish-builder") {
+    dishBuilder = { name: "", query: "", ingredients: [] };
+    addPanelMode = "dish";
+    render();
+  }
+  if (button.dataset.action === "open-ingredient-library") {
+    const form = button.closest('form[data-form="dish-create"]');
+    if (form) syncDishBuilderFromForm(form);
+    ingredientPicker = { source: "mine", query: "", categoryId: "", items: {} };
+    addPage = "dish-library";
+    render();
+  }
+  if (button.dataset.ingredientSource) {
+    ingredientPicker.source = button.dataset.ingredientSource;
+    ingredientPicker.query = "";
+    ingredientPicker.categoryId = "";
+    ingredientPicker.items = {};
+    render();
+  }
+  if (button.dataset.ingredientCategory !== undefined) {
+    ingredientPicker.categoryId = button.dataset.ingredientCategory;
+    ingredientPicker.query = "";
+    render();
+  }
+  if (button.dataset.toggleIngredientPicker) {
+    const id = button.dataset.toggleIngredientPicker;
+    if (Object.prototype.hasOwnProperty.call(ingredientPicker.items, id)) delete ingredientPicker.items[id];
+    else ingredientPicker.items[id] = "";
+    render();
+  }
+  if (button.dataset.action === "ingredient-picker-next") {
+    if (!selectedIngredientPickerItems().length) return toast("Выберите ингредиенты");
+    addPage = "dish-library-amounts";
+    render();
+  }
+  if (button.dataset.addBuilderProduct) {
+    const form = button.closest('form[data-form="dish-create"]');
+    if (form) syncDishBuilderFromForm(form);
+    const product = productById(button.dataset.addBuilderProduct);
+    if (product) addIngredientToBuilder(product);
+    render();
+  }
+  if (button.dataset.addBuilderEighty) {
+    const form = button.closest('form[data-form="dish-create"]');
+    if (form) syncDishBuilderFromForm(form);
+    const food = eightyFoodById(button.dataset.addBuilderEighty);
+    if (food) {
+      addIngredientToBuilder(saveEightyProduct(food));
+      persist();
+    }
+    render();
+  }
+  if (button.dataset.removeBuilderIngredient) {
+    const form = button.closest('form[data-form="dish-create"]');
+    if (form) syncDishBuilderFromForm(form);
+    const draft = ensureDishBuilder();
+    draft.ingredients = draft.ingredients.filter((ingredient) => ingredient.id !== button.dataset.removeBuilderIngredient);
+    render();
+  }
+  if (button.dataset.foodSource) {
+    addFoodSource = button.dataset.foodSource;
+    if (addFoodSource === "mine") eightyCategoryId = "";
+    render();
+  }
+  if (button.dataset.eightyCategory !== undefined) {
+    eightyCategoryId = button.dataset.eightyCategory;
+    render();
+  }
+  if (button.dataset.eightyFood) {
+    eightyFoodDialog = { foodId: button.dataset.eightyFood, amount: "100" };
     render();
   }
   if (button.dataset.action === "toggle-cart") {
     mealCartOpen = !mealCartOpen;
     render();
+  }
+  if (button.dataset.action === "add-eighty-food") {
+    addEightyFoodToMeal();
+  }
+  if (button.dataset.action === "close-eighty-food") {
+    eightyFoodDialog = null;
+    render();
+  }
+  if (button.dataset.action === "close-library-editor") {
+    libraryEditor = null;
+    render();
+  }
+  if (button.dataset.action === "cancel-delete") {
+    deleteConfirm = null;
+    render();
+  }
+  if (button.dataset.action === "confirm-delete") {
+    confirmDelete();
+  }
+  if (button.dataset.action === "add-dish-ingredient") {
+    const form = button.closest('form[data-form="dish-edit"]');
+    if (form) syncDishDraftFromForm(form);
+    const firstProduct = state.products[0];
+    if (libraryEditor?.kind === "dish" && firstProduct) {
+      libraryEditor.draft.ingredients.push({ id: uid(), productId: firstProduct.id, amount: 100 });
+      render();
+    } else {
+      toast("Добавьте продукт");
+    }
+  }
+  if (button.dataset.removeDishIngredient) {
+    const form = button.closest('form[data-form="dish-edit"]');
+    if (form) syncDishDraftFromForm(form);
+    if (libraryEditor?.kind === "dish") {
+      libraryEditor.draft.ingredients = libraryEditor.draft.ingredients.filter((ingredient) => ingredient.id !== button.dataset.removeDishIngredient);
+      render();
+    }
   }
   if (button.dataset.toggleProduct) toggleProduct(button.dataset.toggleProduct);
   if (button.dataset.addMeal) {
@@ -1932,17 +3998,6 @@ app.addEventListener("click", (event) => {
     favoritesSort = button.dataset.favoritesSort;
     render();
   }
-});
-
-app.addEventListener("pointerdown", (event) => {
-  const button = event.target.closest('button[data-action="add-weight"]');
-  if (!button) return;
-  event.preventDefault();
-  skipNextAddWeightClick = true;
-  handleAddWeightButton(button);
-  setTimeout(() => {
-    skipNextAddWeightClick = false;
-  }, 500);
 });
 
 app.addEventListener("change", (event) => {
@@ -1971,19 +4026,118 @@ app.addEventListener("change", (event) => {
     persist();
     render();
   }
+  const dishCreateForm = target.closest('form[data-form="dish-create"]');
+  if (dishCreateForm && ["builderIngredientAmount"].includes(target.name)) {
+    syncDishBuilderFromForm(dishCreateForm);
+    render();
+  }
+  const dishEditForm = target.closest('form[data-form="dish-edit"]');
+  if (dishEditForm && ["ingredientProduct", "ingredientAmount"].includes(target.name)) {
+    syncDishDraftFromForm(dishEditForm);
+    render();
+  }
 });
 
 app.addEventListener("input", (event) => {
   const target = event.target;
   if (target.matches("[data-favorites-query]")) {
     favoritesQuery = target.value;
-    const list = app.querySelector("[data-favorites-list]");
-    const products = filteredFavorites();
-    if (list) {
-      list.innerHTML = products.length
-        ? products.map(productRow).join("")
-        : `<div class="empty big-empty">Пока ничего не добавлено.</div>`;
+    const cursor = target.selectionStart;
+    render();
+    const nextSearch = app.querySelector("[data-favorites-query]");
+    nextSearch?.focus();
+    nextSearch?.setSelectionRange?.(cursor, cursor);
+    return;
+  }
+  if (target.matches("[data-favorites-eighty-query]")) {
+    favoritesEightyQuery = target.value;
+    const cursor = target.selectionStart;
+    render();
+    const nextSearch = app.querySelector("[data-favorites-eighty-query]");
+    nextSearch?.focus();
+    nextSearch?.setSelectionRange?.(cursor, cursor);
+    return;
+  }
+  if (target.matches("[data-add-food-query]")) {
+    addFoodQuery = target.value;
+    const cursor = target.selectionStart;
+    render();
+    const nextSearch = app.querySelector("[data-add-food-query]");
+    nextSearch?.focus();
+    nextSearch?.setSelectionRange?.(cursor, cursor);
+    return;
+  }
+  if (target.matches("[data-eighty-import-query]")) {
+    eightyImport.query = target.value;
+    const cursor = target.selectionStart;
+    render();
+    const nextSearch = app.querySelector("[data-eighty-import-query]");
+    nextSearch?.focus();
+    nextSearch?.setSelectionRange?.(cursor, cursor);
+    return;
+  }
+  if (target.dataset.eightyImportAmount) {
+    eightyImport.items[target.dataset.eightyImportAmount] = target.value;
+    const submit = app.querySelector('form[data-form="eighty-import"] .sticky-add-submit');
+    if (submit) submit.disabled = !selectedEightyFoods().length || selectedEightyFoods().some((product) => number(eightyImport.items[product.id]) <= 0);
+    return;
+  }
+  if (target.name === "eightyAmount") {
+    if (eightyFoodDialog) {
+      eightyFoodDialog.amount = target.value;
+      refreshEightyFoodTotal();
     }
+    return;
+  }
+  if (target.matches("[data-dish-search]") || target.name === "dishName") {
+    const form = target.closest('form[data-form="dish-create"]');
+    if (form) syncDishBuilderFromForm(form);
+    const name = target.name;
+    const cursor = target.selectionStart;
+    render();
+    const selector = name === "dishName" ? '[name="dishName"]' : "[data-dish-search]";
+    const nextInput = app.querySelector(selector);
+    nextInput?.focus();
+    nextInput?.setSelectionRange?.(cursor, cursor);
+    return;
+  }
+  if (target.matches("[data-ingredient-picker-query]")) {
+    ingredientPicker.query = target.value;
+    const cursor = target.selectionStart;
+    render();
+    const nextSearch = app.querySelector("[data-ingredient-picker-query]");
+    nextSearch?.focus();
+    nextSearch?.setSelectionRange?.(cursor, cursor);
+    return;
+  }
+  if (target.dataset.ingredientPickerAmount) {
+    ingredientPicker.items[target.dataset.ingredientPickerAmount] = target.value;
+    const submit = app.querySelector('form[data-form="dish-ingredient-add"] .sticky-add-submit');
+    if (submit) submit.disabled = !selectedIngredientPickerItems().length || selectedIngredientPickerItems().some((item) => number(ingredientPicker.items[item.id]) <= 0);
+    return;
+  }
+  if (target.name === "builderIngredientAmount") {
+    const form = target.closest('form[data-form="dish-create"]');
+    const row = target.closest("[data-builder-ingredient]");
+    const rowId = row?.dataset.builderIngredient;
+    const cursor = target.selectionStart;
+    if (form) syncDishBuilderFromForm(form);
+    render();
+    const nextInput = rowId ? app.querySelector(`[data-builder-ingredient="${rowId}"] [name="builderIngredientAmount"]`) : null;
+    nextInput?.focus();
+    nextInput?.setSelectionRange?.(cursor, cursor);
+    return;
+  }
+  if (target.name === "ingredientAmount") {
+    const form = target.closest('form[data-form="dish-edit"]');
+    const row = target.closest("[data-dish-ingredient]");
+    const rowId = row?.dataset.dishIngredient;
+    const cursor = target.selectionStart;
+    if (form) syncDishDraftFromForm(form);
+    render();
+    const nextInput = rowId ? app.querySelector(`[data-dish-ingredient="${rowId}"] [name="ingredientAmount"]`) : null;
+    nextInput?.focus();
+    nextInput?.setSelectionRange?.(cursor, cursor);
     return;
   }
   const entryForm = target.closest('form[data-form="entry"]');
@@ -1997,7 +4151,7 @@ app.addEventListener("input", (event) => {
   }
 
   const profileForm = target.closest('form[data-form="profile"]');
-  if (profileForm && ["weight", "waterGoal"].includes(target.name)) {
+  if (profileForm && target.name === "waterGoal") {
     updateProfileWaterFromForm(profileForm);
   }
   const waterPanel = target.closest("[data-profile-water]");

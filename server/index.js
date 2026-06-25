@@ -78,6 +78,22 @@ async function saveUser(id, telegramId, state) {
   if (error) throw error;
 }
 
+async function deleteUser(id) {
+  if (!supabase) {
+    const store = readStore();
+    if (store.users) delete store.users[id];
+    writeStore(store);
+    return;
+  }
+
+  const { error } = await supabase
+    .from("users")
+    .delete()
+    .eq("id", id);
+
+  if (error) throw error;
+}
+
 function json(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -158,6 +174,7 @@ function createDefaultState(user) {
   return {
     version: 5,
     createdAt: new Date().toISOString(),
+    onboardingCompleted: false,
     telegram: {
       name: user.name,
       telegramId: user.telegramId,
@@ -188,6 +205,8 @@ function createDefaultState(user) {
       waterGoal: 2200
     },
     products: [],
+    dishes: [],
+    eightyOverrides: {},
     diary: { [today]: [] },
     water: { [today]: 0 },
     waterHistory: { [today]: [] },
@@ -267,6 +286,17 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, {
         ok: true,
         savedAt: new Date().toISOString(),
+        storage: supabase ? "supabase" : "local-json"
+      });
+    }
+
+    if (url.pathname === "/api/account" && req.method === "DELETE") {
+      const requestUser = getRequestUser(req, url);
+      await deleteUser(requestUser.id);
+
+      return json(res, 200, {
+        ok: true,
+        deletedAt: new Date().toISOString(),
         storage: supabase ? "supabase" : "local-json"
       });
     }
