@@ -2038,7 +2038,7 @@ function tabs() {
     ["diary", icons.diary, "Дневник"],
     ["analytics", icons.analytics, "Аналитика"],
     ["add", icons.add, "Добавить"],
-    ["favorites", icons.favorite, "Мои продукты"],
+    ["favorites", icons.favorite, "Продукты"],
     ["profile", icons.profile, "Профиль"]
   ];
   return `<nav class="tabs">${items.map(([id, icon, label]) => `
