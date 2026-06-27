@@ -152,6 +152,36 @@
             }
           ],
           "2026-06-25": [],
+          "2026-06-27": [
+            {
+              "id": "3t374y35mqveuvig",
+              "meal": "breakfast",
+              "productId": "wrws1y5xmqveuqk6",
+              "label": "Спагетти",
+              "amount": 100,
+              "unit": "г",
+              "nutrients": {
+                "calories": 96,
+                "protein": 4,
+                "fat": 0.8,
+                "carbs": 1.6
+              }
+            },
+            {
+              "id": "aywvmmcjmqvhc0nl",
+              "meal": "breakfast",
+              "productId": "iolohvivmqvbqc9x",
+              "label": "Банан",
+              "amount": 100,
+              "unit": "г",
+              "nutrients": {
+                "calories": 89,
+                "protein": 1.1,
+                "fat": 0.3,
+                "carbs": 22.8
+              }
+            }
+          ],
           "2026-06-26": [
             {
               "id": "s2dc38ttmqvbr0hj",
@@ -237,36 +267,6 @@
                 "carbs": 0.75
               }
             }
-          ],
-          "2026-06-27": [
-            {
-              "id": "3t374y35mqveuvig",
-              "meal": "breakfast",
-              "productId": "wrws1y5xmqveuqk6",
-              "label": "Спагетти",
-              "amount": 100,
-              "unit": "г",
-              "nutrients": {
-                "calories": 96,
-                "protein": 4,
-                "fat": 0.8,
-                "carbs": 1.6
-              }
-            },
-            {
-              "id": "aywvmmcjmqvhc0nl",
-              "meal": "breakfast",
-              "productId": "iolohvivmqvbqc9x",
-              "label": "Банан",
-              "amount": 100,
-              "unit": "г",
-              "nutrients": {
-                "calories": 89,
-                "protein": 1.1,
-                "fat": 0.3,
-                "carbs": 22.8
-              }
-            }
           ]
         },
         "water": {
@@ -274,8 +274,8 @@
           "2026-06-23": 0,
           "2026-06-24": 0,
           "2026-06-25": 0,
-          "2026-06-26": 0,
-          "2026-06-27": 500
+          "2026-06-27": 500,
+          "2026-06-26": 0
         },
         "weightLogs": [
           {
@@ -293,7 +293,6 @@
         "waterHistory": {
           "2026-06-24": [],
           "2026-06-25": [],
-          "2026-06-26": [],
           "2026-06-27": [
             {
               "id": "v8ddiqpamqvh1rwz",
@@ -305,7 +304,8 @@
               "amount": 250,
               "createdAt": "2026-06-26T21:57:19.000Z"
             }
-          ]
+          ],
+          "2026-06-26": []
         },
         "stats": {
           "currentStreak": 2,
@@ -322,7 +322,7 @@
         "accountResetAt": "2026-06-25T03:46:36.159Z",
         "mealTemplates": []
       },
-      "updatedAt": "2026-06-27T01:07:31.305Z"
+      "updatedAt": "2026-06-27T01:30:05.122Z"
     },
     "codex-onboarding-test": {
       "telegramId": "codex-onboarding-test",

@@ -337,12 +337,130 @@ button:disabled {
   padding: 18px 16px 128px;
 }
 
+.layout.screen-transitioning {
+  display: grid;
+  align-items: start;
+  overflow-x: clip;
+}
+
 .screen {
   display: none;
 }
 
 .screen.active {
   display: block;
+}
+
+.day-swipe-surface {
+  touch-action: pan-y;
+}
+
+.screen.day-swipe-enter-next {
+  animation: daySwipeInNext 0.2s var(--ease-out) both;
+}
+
+.screen.day-swipe-enter-prev {
+  animation: daySwipeInPrev 0.2s var(--ease-out) both;
+}
+
+@keyframes daySwipeInNext {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes daySwipeInPrev {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.layout.screen-transitioning .screen.transition-from,
+.layout.screen-transitioning .screen.transition-to {
+  display: block;
+  grid-area: 1 / 1;
+  will-change: opacity, transform;
+  backface-visibility: hidden;
+}
+
+.layout.screen-transitioning .screen.transition-from {
+  pointer-events: none;
+}
+
+.layout.screen-transitioning[data-screen-direction="forward"] .screen.transition-from {
+  animation: screenOutForward 0.2s var(--ease-out) both;
+}
+
+.layout.screen-transitioning[data-screen-direction="forward"] .screen.transition-to {
+  animation: screenInForward 0.2s var(--ease-out) both;
+}
+
+.layout.screen-transitioning[data-screen-direction="back"] .screen.transition-from {
+  animation: screenOutBack 0.2s var(--ease-out) both;
+}
+
+.layout.screen-transitioning[data-screen-direction="back"] .screen.transition-to {
+  animation: screenInBack 0.2s var(--ease-out) both;
+}
+
+@keyframes screenOutForward {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+}
+
+@keyframes screenInForward {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes screenOutBack {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+}
+
+@keyframes screenInBack {
+  from {
+    opacity: 0;
+    transform: translateX(-14px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .stack {
@@ -3133,56 +3251,20 @@ button:disabled {
 
 .tab-indicator {
   position: absolute;
-  left: 10px;
+  left: 0;
   top: 16px;
   z-index: 0;
-  width: calc((100% - 20px) / 5);
+  width: 46px;
   height: 38px;
   pointer-events: none;
-  transform: translateX(0);
+  border-radius: 999px;
+  background: var(--green-soft);
+  transform: translateX(var(--tab-indicator-x, 0px));
   transition: transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out);
 }
 
-.tab-indicator::before {
-  content: "";
-  width: 46px;
-  height: 38px;
-  display: block;
-  margin: 0 auto;
-  border-radius: 999px;
-  background: var(--green-soft);
-}
-
-.tabs[data-indicator-from="0"] .tab-indicator {
-  transform: translateX(0);
-}
-
-.tabs[data-indicator-from="1"] .tab-indicator {
-  transform: translateX(100%);
-}
-
-.tabs[data-indicator-from="3"] .tab-indicator {
-  transform: translateX(300%);
-}
-
-.tabs[data-indicator-from="4"] .tab-indicator {
-  transform: translateX(400%);
-}
-
-.tabs.nav-ready[data-indicator-index="0"] .tab-indicator {
-  transform: translateX(0);
-}
-
-.tabs.nav-ready[data-indicator-index="1"] .tab-indicator {
-  transform: translateX(100%);
-}
-
-.tabs.nav-ready[data-indicator-index="3"] .tab-indicator {
-  transform: translateX(300%);
-}
-
-.tabs.nav-ready[data-indicator-index="4"] .tab-indicator {
-  transform: translateX(400%);
+.tabs.nav-no-motion .tab-indicator {
+  transition: none;
 }
 
 .tabs.indicator-hidden .tab-indicator {

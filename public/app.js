@@ -158,7 +158,12 @@ const icons = {
 let state = null;
 let currentUser = { id: "demo-user", telegramId: "", name: "Пользователь", photoUrl: "" };
 let activeScreen = "diary";
-let tabIndicatorFrom = null;
+let tabIndicatorFromScreen = null;
+let screenTransition = null;
+let screenTransitionTimer = null;
+let daySwipe = null;
+let daySwipeIntro = null;
+let daySwipeIntroTimer = null;
 let selectedDate = todayIso();
 let saveTimer = null;
 let analyticsDate = todayIso();
@@ -231,6 +236,7 @@ function updateKeyboardMode() {
   const keyboardVisible = focused && keyboardOffset > 90;
 
   setKeyboardMode(focused && (keyboardVisible || Boolean(tg) || window.innerWidth <= 820), keyboardOffset);
+  activateTabIndicatorMotion();
 }
 
 function setupKeyboardBehavior() {
@@ -1060,11 +1066,25 @@ function earnedAchievementCount() {
 }
 
 function setScreen(screen) {
-  const previousIndex = tabIndicatorIndex(activeScreen);
-  const nextIndex = tabIndicatorIndex(screen);
-  tabIndicatorFrom = previousIndex !== null && nextIndex !== null && previousIndex !== nextIndex
-    ? previousIndex
-    : nextIndex;
+  const previousScreen = activeScreen;
+  tabIndicatorFromScreen = tabIndicatorIndex(previousScreen) !== null && tabIndicatorIndex(screen) !== null && previousScreen !== screen
+    ? previousScreen
+    : null;
+  if (screenTransitionTimer) {
+    clearTimeout(screenTransitionTimer);
+    screenTransitionTimer = null;
+  }
+  if (previousScreen !== screen) {
+    const previousOrder = screenOrderIndex(previousScreen);
+    const nextOrder = screenOrderIndex(screen);
+    screenTransition = {
+      from: previousScreen,
+      to: screen,
+      direction: nextOrder >= previousOrder ? "forward" : "back"
+    };
+  } else {
+    screenTransition = null;
+  }
   activeScreen = screen;
   closeModal();
   if (screen === "add") {
@@ -1086,6 +1106,13 @@ function setScreen(screen) {
     favoritesEightyQuery = "";
   }
   render();
+  if (screenTransition) {
+    screenTransitionTimer = setTimeout(() => {
+      screenTransition = null;
+      screenTransitionTimer = null;
+      finishScreenTransition();
+    }, 220);
+  }
 }
 
 function setAddPage(page) {
@@ -1124,10 +1151,19 @@ function changeDate(delta) {
   const date = new Date(year, month - 1, day);
   date.setDate(date.getDate() + delta);
   const next = toIsoDate(date);
-  if (next > todayIso()) return;
+  if (next > todayIso()) return false;
   selectedDate = next;
   ensureShape();
   render();
+  return true;
+}
+
+function changeAnalyticsDate(delta) {
+  const next = clampAnalyticsDate(addDays(analyticsDate, delta));
+  if (next === analyticsDate) return false;
+  analyticsDate = next;
+  render();
+  return true;
 }
 
 function blurActive() {
@@ -2162,7 +2198,7 @@ function render() {
   const consumed = sumNutrients(entriesForDate());
 
   app.innerHTML = `
-    <main class="layout">
+    <main class="layout ${screenTransition ? "screen-transitioning" : ""}"${screenTransition ? ` data-screen-direction="${screenTransition.direction}"` : ""}>
       ${screenDiary(targets, consumed)}
       ${screenAnalytics(targets)}
       ${screenAdd()}
@@ -2197,12 +2233,77 @@ function tabIndicatorIndex(screen) {
   })[screen] ?? null;
 }
 
+function screenOrderIndex(screen) {
+  return ({
+    diary: 0,
+    analytics: 1,
+    add: 2,
+    favorites: 3,
+    profile: 4
+  })[screen] ?? 0;
+}
+
+function screenStateClass(screen) {
+  return [
+    "screen",
+    activeScreen === screen ? "active" : "",
+    daySwipeEnabled(screen) ? "day-swipe-surface" : "",
+    daySwipeIntro?.screen === screen ? `day-swipe-enter day-swipe-enter-${daySwipeIntro.direction}` : "",
+    screenTransition?.from === screen ? "transition-from" : "",
+    screenTransition?.to === screen ? "transition-to" : ""
+  ].filter(Boolean).join(" ");
+}
+
+function finishScreenTransition() {
+  const layout = app.querySelector(".layout.screen-transitioning");
+  layout?.classList.remove("screen-transitioning");
+  layout?.removeAttribute("data-screen-direction");
+  app.querySelectorAll(".screen.transition-from").forEach((screen) => {
+    screen.classList.remove("active", "transition-from");
+  });
+  app.querySelectorAll(".screen.transition-to").forEach((screen) => {
+    screen.classList.remove("transition-to");
+  });
+}
+
+function daySwipeEnabled(screen) {
+  return screen === "diary" || (screen === "analytics" && analyticsView !== "periods");
+}
+
 function activateTabIndicatorMotion() {
-  const nav = app.querySelector(".tabs:not(.nav-ready)");
-  if (!nav) return;
+  const nav = app.querySelector(".tabs");
+  const indicator = nav?.querySelector(".tab-indicator");
+  if (!nav || !indicator) return;
+  nav.classList.add("nav-no-motion");
+  const previousIndicatorX = nav.style.getPropertyValue("--tab-indicator-x");
+  nav.style.setProperty("--tab-indicator-x", "0px");
+  indicator.offsetWidth;
+  const indicatorOriginLeft = indicator.getBoundingClientRect().left;
+  if (previousIndicatorX) nav.style.setProperty("--tab-indicator-x", previousIndicatorX);
+  else nav.style.removeProperty("--tab-indicator-x");
+  const indicatorX = (screen) => {
+    const button = nav.querySelector(`.tab[data-screen="${screen}"]:not(.tab-action)`);
+    if (!button) return null;
+    const buttonRect = button.getBoundingClientRect();
+    const indicatorRect = indicator.getBoundingClientRect();
+    return buttonRect.left + (buttonRect.width / 2) - indicatorOriginLeft - (indicatorRect.width / 2);
+  };
+  const activeX = indicatorX(activeScreen);
+  const fromX = tabIndicatorFromScreen ? indicatorX(tabIndicatorFromScreen) : activeX;
+  const shouldAnimate = tabIndicatorFromScreen && fromX !== null && activeX !== null && fromX !== activeX;
+  if (fromX !== null) nav.style.setProperty("--tab-indicator-x", `${fromX}px`);
+  indicator.offsetWidth;
   const run = () => {
     nav.classList.add("nav-ready");
-    tabIndicatorFrom = null;
+    if (!shouldAnimate) {
+      if (activeX !== null) nav.style.setProperty("--tab-indicator-x", `${activeX}px`);
+      tabIndicatorFromScreen = null;
+      requestAnimationFrame(() => nav.classList.remove("nav-no-motion"));
+      return;
+    }
+    nav.classList.remove("nav-no-motion");
+    if (activeX !== null) nav.style.setProperty("--tab-indicator-x", `${activeX}px`);
+    tabIndicatorFromScreen = null;
   };
   if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
   else setTimeout(run, 0);
@@ -2217,10 +2318,9 @@ function tabs() {
     ["profile", icons.profile, "Профиль"]
   ];
   const activeIndex = tabIndicatorIndex(activeScreen);
-  const fromIndex = tabIndicatorFrom ?? activeIndex ?? 0;
-  const readyClass = tabIndicatorFrom === null ? "nav-ready" : "";
+  const readyClass = tabIndicatorFromScreen === null ? "nav-ready" : "";
   const hiddenClass = activeIndex === null ? "indicator-hidden" : "";
-  return `<nav class="tabs ${readyClass} ${hiddenClass}" data-indicator-index="${activeIndex ?? fromIndex}" data-indicator-from="${fromIndex}">
+  return `<nav class="tabs ${readyClass} ${hiddenClass}">
     <span class="tab-indicator" aria-hidden="true"></span>
     ${items.map(([id, icon, label]) => `
     <button class="tab ${activeScreen === id ? "active" : ""} ${id === "add" ? "tab-action" : ""}" data-screen="${id}" title="${label}">
@@ -2229,10 +2329,120 @@ function tabs() {
   `).join("")}</nav>`;
 }
 
+function canChangeDayBySwipe(screen, delta) {
+  if (screen === "diary") return addDays(selectedDate, delta) <= todayIso();
+  if (screen === "analytics") {
+    const next = addDays(analyticsDate, delta);
+    return next >= analyticsMinDate() && next <= todayIso();
+  }
+  return false;
+}
+
+function applyDaySwipeChange(screen, delta) {
+  if (activeScreen !== screen || !canChangeDayBySwipe(screen, delta)) return false;
+  if (daySwipeIntroTimer) {
+    clearTimeout(daySwipeIntroTimer);
+    daySwipeIntroTimer = null;
+  }
+  daySwipeIntro = { screen, direction: delta > 0 ? "next" : "prev" };
+  if (screen === "diary") {
+    selectedDate = addDays(selectedDate, delta);
+    ensureShape();
+  }
+  if (screen === "analytics") analyticsDate = addDays(analyticsDate, delta);
+  render();
+  daySwipeIntroTimer = setTimeout(() => {
+    daySwipeIntro = null;
+    daySwipeIntroTimer = null;
+  }, 220);
+  return true;
+}
+
+function resetDaySwipeNode(node) {
+  if (!node) return;
+  node.style.transition = "transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out)";
+  node.style.transform = "translateX(0)";
+  node.style.opacity = "";
+  window.setTimeout(() => {
+    node.style.transition = "";
+    node.style.transform = "";
+    node.style.opacity = "";
+  }, 220);
+}
+
+function daySwipeStart(event) {
+  if (!daySwipeEnabled(activeScreen)) return;
+  const target = event.target instanceof Element ? event.target : event.target?.parentElement;
+  if (!target) return;
+  if (target.closest("button, input, textarea, select, a, label, [role='dialog'], .modal-backdrop")) return;
+  const node = target.closest(".screen.active.day-swipe-surface");
+  if (!node) return;
+  daySwipe = {
+    pointerId: event.pointerId,
+    screen: activeScreen,
+    node,
+    startX: event.clientX,
+    startY: event.clientY,
+    currentX: event.clientX,
+    axis: "",
+    width: Math.max(1, node.getBoundingClientRect().width)
+  };
+}
+
+function daySwipeMove(event) {
+  if (!daySwipe || event.pointerId !== daySwipe.pointerId) return;
+  const dx = event.clientX - daySwipe.startX;
+  const dy = event.clientY - daySwipe.startY;
+  const absX = Math.abs(dx);
+  const absY = Math.abs(dy);
+
+  if (!daySwipe.axis) {
+    if (absX < 10 && absY < 10) return;
+    if (absY > absX * 1.15) {
+      daySwipe = null;
+      return;
+    }
+    if (absX <= absY * 1.15) return;
+    daySwipe.axis = "horizontal";
+    daySwipe.node.setPointerCapture?.(event.pointerId);
+  }
+
+  if (daySwipe.axis !== "horizontal") return;
+  event.preventDefault();
+  daySwipe.currentX = event.clientX;
+  const delta = dx < 0 ? 1 : -1;
+  const available = canChangeDayBySwipe(daySwipe.screen, delta);
+  const resisted = available ? dx : dx * 0.28;
+  const limit = daySwipe.width * 0.42;
+  const offset = clamp(resisted, -limit, limit);
+  daySwipe.node.style.transition = "none";
+  daySwipe.node.style.transform = `translateX(${offset}px)`;
+  daySwipe.node.style.opacity = String(1 - clamp(Math.abs(offset) / daySwipe.width, 0, 0.18));
+}
+
+function daySwipeEnd(event) {
+  if (!daySwipe || event.pointerId !== daySwipe.pointerId) return;
+  const swipe = daySwipe;
+  daySwipe = null;
+  const dx = swipe.currentX - swipe.startX;
+  if (swipe.axis !== "horizontal") return;
+  const delta = dx < 0 ? 1 : -1;
+  const threshold = Math.min(96, Math.max(64, swipe.width * 0.22));
+  const complete = Math.abs(dx) >= threshold && canChangeDayBySwipe(swipe.screen, delta);
+  if (!complete) {
+    resetDaySwipeNode(swipe.node);
+    return;
+  }
+  swipe.node.style.transition = "transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out)";
+  swipe.node.style.transform = `translateX(${delta > 0 ? -swipe.width : swipe.width}px)`;
+  swipe.node.style.opacity = "0";
+  window.setTimeout(() => applyDaySwipeChange(swipe.screen, delta), 190);
+}
+
 function screenDiary(targets, consumed) {
   const remaining = Math.max(0, targets.calories - consumed.calories);
   const calorieProgress = targets.complete ? clamp(consumed.calories / Math.max(1, targets.calories) * 100, 0, 100) : 0;
-  return `<section class="screen ${activeScreen === "diary" ? "active" : ""}">
+  return `<section class="${screenStateClass("diary")}">
     <div class="stack">
       <header class="app-header">
         <div class="brand-mark">80</div>
@@ -2432,7 +2642,7 @@ function screenAnalytics(targets = calcTargets()) {
   if (analyticsView === "periods") return screenAnalyticsPeriods();
 
   const dayStats = sumNutrients(state.diary[analyticsDate] || []);
-  return `<section class="screen ${activeScreen === "analytics" ? "active" : ""}">
+  return `<section class="${screenStateClass("analytics")}">
     <div class="stack">
       <header class="screen-header profile-title">
         <div class="profile-title-row">
@@ -2594,7 +2804,7 @@ function screenAnalyticsPeriods() {
   const range = analyticsPeriodRange();
   const history = analyticsHistoryForRange(range.start, range.end);
   const stats = analyticsStats(history);
-  return `<section class="screen ${activeScreen === "analytics" ? "active" : ""}">
+  return `<section class="${screenStateClass("analytics")}">
     <div class="stack">
       <header class="analytics-page-head">
         <button class="back-link" type="button" data-action="analytics-back">Назад</button>
@@ -2764,7 +2974,7 @@ function statCard(label, value) {
 }
 
 function screenAdd() {
-  return `<section class="screen ${activeScreen === "add" ? "active" : ""}">
+  return `<section class="${screenStateClass("add")}">
     <div class="stack">
       ${addPageContent()}
     </div>
@@ -3633,7 +3843,7 @@ function screenFavorites() {
   if (favoritesPage === "eighty-category") return screenFavoritesEightyCategory();
   const query = favoritesQuery.trim();
   const items = userLibraryItems(query);
-  return `<section class="screen ${activeScreen === "favorites" ? "active" : ""}">
+  return `<section class="${screenStateClass("favorites")}">
     <div class="stack">
       <header class="screen-header profile-title">
         <div class="profile-title-row">
@@ -3661,7 +3871,7 @@ function favoritesBackHeader(title, backPage = "home") {
 }
 
 function screenFavoritesEightyCategories() {
-  return `<section class="screen ${activeScreen === "favorites" ? "active" : ""}">
+  return `<section class="${screenStateClass("favorites")}">
     <div class="stack">
       ${favoritesBackHeader("База Eighty")}
       <div class="eighty-category-list">
@@ -3687,7 +3897,7 @@ function favoriteEightyProducts(categoryId) {
 function screenFavoritesEightyCategory() {
   const category = eightyFoodCategories.find((item) => item.id === favoritesEightyCategoryId) || eightyFoodCategories[0];
   const products = favoriteEightyProducts(category.id);
-  return `<section class="screen ${activeScreen === "favorites" ? "active" : ""}">
+  return `<section class="${screenStateClass("favorites")}">
     <div class="stack">
       ${favoritesBackHeader(`${category.label}`, "eighty")}
       <input class="search-input" data-favorites-eighty-query value="${escapeHtml(favoritesEightyQuery)}" placeholder="Поиск">
@@ -3955,7 +4165,7 @@ function accountDeletingOverlay() {
 function screenProfile(targets) {
   const telegramId = state.telegram.telegramId || currentUser.telegramId || "—";
   if (weightHistoryOpen) return screenWeightHistory();
-  return `<section class="screen ${activeScreen === "profile" ? "active" : ""}">
+  return `<section class="${screenStateClass("profile")}">
     <div class="stack">
       <header class="screen-header profile-title">
         <div class="profile-title-row">
@@ -4022,7 +4232,7 @@ function weightRows() {
 
 function screenWeightHistory() {
   const rows = weightRows();
-  return `<section class="screen ${activeScreen === "profile" ? "active" : ""}">
+  return `<section class="${screenStateClass("profile")}">
     <div class="stack">
       <header class="screen-header profile-title weight-page-title">
         <button class="back-link" type="button" data-action="close-weight-history">← Назад</button>
@@ -4355,6 +4565,11 @@ app.addEventListener("submit", (event) => {
   if (type === "onboarding") advanceOnboarding(form);
 });
 
+app.addEventListener("pointerdown", daySwipeStart);
+app.addEventListener("pointermove", daySwipeMove);
+app.addEventListener("pointerup", daySwipeEnd);
+app.addEventListener("pointercancel", daySwipeEnd);
+
 app.addEventListener("click", (event) => {
   if (event.target.dataset.modalClose) {
     closeModal(event.target.dataset.modalClose);
@@ -4600,8 +4815,7 @@ app.addEventListener("click", (event) => {
     render();
   }
   if (button.dataset.analyticsStep) {
-    analyticsDate = clampAnalyticsDate(addDays(analyticsDate, number(button.dataset.analyticsStep)));
-    render();
+    changeAnalyticsDate(number(button.dataset.analyticsStep));
   }
   if (button.dataset.addPanel) {
     addPanelMode = button.dataset.addPanel;
