@@ -185,6 +185,12 @@ let addPage = "home";
 let addCreateMenuOpen = false;
 let addFoodSource = "mine";
 let addFoodQuery = "";
+let productCreateDraft = null;
+let barcodeScannerOpen = false;
+let barcodeScannerBusy = false;
+let barcodeScannerMessage = "";
+let barcodeScanner = null;
+let barcodeScannerLibraryPromise = null;
 let mealTemplatesVisible = true;
 let templateSourceDate = todayIso();
 let mealTemplateEditor = null;
@@ -1190,9 +1196,11 @@ function setAddPage(page) {
     eightyImport = { items: {}, query: "" };
     eightyCategoryId = "";
     addFoodQuery = "";
+    productCreateDraft = null;
     entryDraft = { meal: entryDraft.meal || "breakfast", items: {} };
     dishBuilder = null;
   }
+  if (page === "product") productCreateDraft = null;
   if (page === "ration") addFoodSource = "mine";
   if (page === "template") templateSourceDate = clampTemplateDate(templateSourceDate || todayIso());
   if (page === "dish" && !dishBuilder) dishBuilder = { name: "", query: "", ingredients: [] };
@@ -1235,6 +1243,10 @@ function blurActive() {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 }
 
+function waitFrame() {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
 function closeModal(name) {
   if (accountDeleteBusy) return;
   if (!name || name === "water") waterHistoryOpen = false;
@@ -1245,6 +1257,12 @@ function closeModal(name) {
   if (!name || name === "library-editor") libraryEditor = null;
   if (!name || name === "delete-confirm") deleteConfirm = null;
   if (!name || name === "account-delete") accountDeleteOpen = false;
+  if (!name || name === "barcode-scanner") {
+    barcodeScannerOpen = false;
+    barcodeScannerBusy = false;
+    barcodeScannerMessage = "";
+    stopBarcodeScanner();
+  }
   if (!name || name === "weight-history") {
     weightHistoryOpen = false;
     weightEditor = null;
@@ -1252,6 +1270,183 @@ function closeModal(name) {
   if (!name || name === "achievements") achievementsOpen = false;
   if (!name || name === "earned-achievements") earnedAchievementsOpen = false;
   if (!name || name === "period-sheet") periodSheetOpen = false;
+}
+
+function barcodeFormatsToSupport() {
+  const formats = window.Html5QrcodeSupportedFormats;
+  if (!formats) return undefined;
+  return [
+    formats.EAN_13,
+    formats.EAN_8,
+    formats.UPC_A,
+    formats.UPC_E
+  ].filter((item) => item !== undefined);
+}
+
+function loadBarcodeScannerLibrary() {
+  if (window.Html5Qrcode) return Promise.resolve();
+  if (barcodeScannerLibraryPromise) return barcodeScannerLibraryPromise;
+  barcodeScannerLibraryPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js";
+    script.async = true;
+    script.onload = () => {
+      if (window.Html5Qrcode) resolve();
+      else {
+        barcodeScannerLibraryPromise = null;
+        reject(new Error("scanner-unavailable"));
+      }
+    };
+    script.onerror = () => {
+      barcodeScannerLibraryPromise = null;
+      reject(new Error("scanner-load-failed"));
+    };
+    document.head.append(script);
+  });
+  return barcodeScannerLibraryPromise;
+}
+
+async function stopBarcodeScanner() {
+  const scanner = barcodeScanner;
+  barcodeScanner = null;
+  if (!scanner) return;
+  try {
+    if (scanner.isScanning) await scanner.stop();
+  } catch (error) {
+    console.warn("Barcode scanner stop failed", error);
+  }
+  try {
+    await scanner.clear();
+  } catch (error) {
+    console.warn("Barcode scanner clear failed", error);
+  }
+}
+
+async function openBarcodeScanner() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    toast("Камера недоступна");
+    return;
+  }
+  barcodeScannerOpen = true;
+  barcodeScannerBusy = false;
+  barcodeScannerMessage = "Наведите камеру на штрихкод";
+  render();
+  await waitFrame();
+  try {
+    await loadBarcodeScannerLibrary();
+    const reader = document.querySelector("#barcode-reader");
+    if (!reader || !barcodeScannerOpen) return;
+    const scanner = new window.Html5Qrcode("barcode-reader");
+    barcodeScanner = scanner;
+    const formatsToSupport = barcodeFormatsToSupport();
+    const config = {
+      fps: 10,
+      qrbox: { width: 260, height: 160 },
+      ...(formatsToSupport?.length ? { formatsToSupport } : {})
+    };
+    await scanner.start(
+      { facingMode: "environment" },
+      config,
+      (decodedText) => handleBarcodeDetected(decodedText),
+      () => {}
+    );
+    if (!barcodeScannerOpen) await stopBarcodeScanner();
+  } catch (error) {
+    console.warn("Barcode scanner start failed", error);
+    await closeBarcodeScanner(false);
+    const libraryError = ["scanner-load-failed", "scanner-unavailable"].includes(error?.message);
+    toast(libraryError ? "Не удалось загрузить сканер" : "Нет доступа к камере");
+  }
+}
+
+async function closeBarcodeScanner(showToast = false) {
+  await stopBarcodeScanner();
+  barcodeScannerOpen = false;
+  barcodeScannerBusy = false;
+  barcodeScannerMessage = "";
+  render();
+  if (showToast) toast("Сканирование отменено");
+}
+
+async function handleBarcodeDetected(value) {
+  const barcode = String(value || "").trim();
+  if (!barcode || barcodeScannerBusy) return;
+  barcodeScannerBusy = true;
+  barcodeScannerMessage = "Штрихкод найден";
+  const message = document.querySelector("[data-barcode-message]");
+  if (message) message.textContent = barcodeScannerMessage;
+  await stopBarcodeScanner();
+  barcodeScannerOpen = false;
+  barcodeScannerBusy = false;
+  await openProductFromBarcode(barcode);
+}
+
+function openProductCreateWithDraft(draft = null) {
+  productCreateDraft = {
+    name: "",
+    type: "weight",
+    calories: "",
+    protein: "",
+    fat: "",
+    carbs: "",
+    cookedDryWeight: "",
+    cookedReadyWeight: "",
+    ...(draft || {})
+  };
+  addCreateMenuOpen = false;
+  addPage = "product";
+  render();
+}
+
+function formatDraftNumber(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? round(numeric, 1) : "";
+}
+
+function nutritionValue(nutriments, key) {
+  const value = nutriments?.[`${key}_100g`] ?? nutriments?.[key];
+  return Number.isFinite(Number(value)) ? Number(value) : null;
+}
+
+function caloriesFromNutriments(nutriments) {
+  const kcal = nutritionValue(nutriments, "energy-kcal");
+  if (kcal !== null) return kcal;
+  const kj = nutritionValue(nutriments, "energy-kj") ?? nutritionValue(nutriments, "energy");
+  return kj !== null ? kj / 4.184 : null;
+}
+
+function productDraftFromOpenFoodFacts(product, barcode) {
+  const nutriments = product?.nutriments || {};
+  return {
+    name: product?.product_name_ru || product?.product_name || product?.generic_name || `Штрихкод ${barcode}`,
+    type: "weight",
+    calories: formatDraftNumber(caloriesFromNutriments(nutriments)),
+    protein: formatDraftNumber(nutritionValue(nutriments, "proteins")),
+    fat: formatDraftNumber(nutritionValue(nutriments, "fat")),
+    carbs: formatDraftNumber(nutritionValue(nutriments, "carbohydrates"))
+  };
+}
+
+async function openProductFromBarcode(barcode) {
+  try {
+    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json`, {
+      headers: { accept: "application/json" },
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error("open-food-facts-failed");
+    const data = await response.json();
+    if (data?.status === 1 && data.product) {
+      openProductCreateWithDraft(productDraftFromOpenFoodFacts(data.product, barcode));
+      toast("Продукт найден");
+      return;
+    }
+    openProductCreateWithDraft();
+    toast("Продукт не найден. Заполните данные вручную.");
+  } catch (error) {
+    console.warn("Open Food Facts lookup failed", error);
+    openProductCreateWithDraft();
+    toast("Не удалось получить данные. Заполните вручную.");
+  }
 }
 
 function emptyUserState() {
@@ -1669,6 +1864,7 @@ function addProduct(form) {
   };
   if (!product.name) return toast("Введите название");
   state.products.unshift(product);
+  productCreateDraft = null;
   blurActive();
   persist();
   render();
@@ -2278,6 +2474,7 @@ function render() {
     ${profileDetailsOpen ? profileDetailsModal(targets) : ""}
     ${nutritionInfoOpen ? nutritionInfoModal(targets) : ""}
     ${eightyFoodDialog ? eightyFoodModal() : ""}
+    ${barcodeScannerOpen ? barcodeScannerModal() : ""}
     ${mealTemplateEditor ? mealTemplateModal() : ""}
     ${libraryEditor?.kind === "product" ? productEditModal() : ""}
     ${libraryEditor?.kind === "dish" ? dishEditModal() : ""}
@@ -3292,7 +3489,7 @@ function addRationPage(showHeader = true) {
     ${showHeader ? addBackHeader("Добавить в рацион") : ""}
     <div class="add-meal-flow add-ration-page">
       ${templatesSection()}
-      <div class="dish-search-row"><input class="search-input" data-add-food-query value="${escapeHtml(addFoodQuery)}" placeholder="Поиск продуктов и блюд"><button class="icon-btn library-open-btn" type="button" data-add-page="eighty" title="База Eighty">📚</button></div>
+      ${addFoodSearchRow()}
       <div class="product-choice-list">
         ${products.length
           ? products.map(rationChoiceCard).join("")
@@ -3300,6 +3497,14 @@ function addRationPage(showHeader = true) {
       </div>
       <button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="button" data-action="ration-next" ${selectedCount ? "" : "disabled"}>Добавить (${selectedCount})</button>
     </div>`;
+}
+
+function addFoodSearchRow() {
+  return `<div class="dish-search-row add-food-search-row">
+    <input class="search-input" data-add-food-query value="${escapeHtml(addFoodQuery)}" placeholder="Поиск продуктов и блюд">
+    <button class="icon-btn library-open-btn barcode-open-btn" type="button" data-action="open-barcode-scanner" title="Сканировать штрихкод" aria-label="Сканировать штрихкод">▦</button>
+    <button class="icon-btn library-open-btn" type="button" data-add-page="eighty" title="База Eighty" aria-label="База Eighty">📚</button>
+  </div>`;
 }
 
 function rationChoiceCard(product) {
@@ -3384,7 +3589,7 @@ function existingProductPanel() {
   const products = filteredAddProducts();
   return `<form class="add-meal-flow" data-form="entry">
     <input type="hidden" name="meal" value="${entryDraft.meal}">
-    <input class="search-input" data-add-food-query value="${escapeHtml(addFoodQuery)}" placeholder="Поиск продуктов и блюд">
+    ${addFoodSearchRow()}
     ${mealCartPanel()}
     ${myFoodPanel(products)}
   </form>`;
@@ -3611,6 +3816,25 @@ function eightyFoodModal() {
   </div>`;
 }
 
+function barcodeScannerModal() {
+  return `<div class="modal-backdrop" data-modal-close="barcode-scanner">
+    <div class="modal-card barcode-scanner-modal" role="dialog" aria-modal="true" aria-label="Сканирование штрихкода">
+      <div class="modal-head">
+        <div>
+          <span>ШТРИХКОД</span>
+          <h3>Сканировать продукт</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-barcode-scanner">×</button>
+      </div>
+      <div class="barcode-reader-box">
+        <div id="barcode-reader"></div>
+      </div>
+      <p class="barcode-scanner-message" data-barcode-message>${escapeHtml(barcodeScannerMessage || "Наведите камеру на штрихкод")}</p>
+      <button class="secondary-btn full-btn" type="button" data-action="close-barcode-scanner">Отмена</button>
+    </div>
+  </div>`;
+}
+
 function refreshEightyFoodTotal() {
   if (!eightyFoodDialog) return;
   const modal = app.querySelector(".eighty-food-modal");
@@ -3734,18 +3958,20 @@ function manualProductForm() {
 }
 
 function createProductPage() {
+  const draft = productCreateDraft || {};
+  const type = draft.type || "weight";
   return `
     ${addBackHeader("Создать продукт")}
     <div class="panel">
-      <form class="form-grid" data-form="product">
-        <div class="field full"><label>Название</label><input name="name" placeholder="Спагетти" enterkeyhint="next" required></div>
-        <div class="field full"><label>Тип продукта</label><select name="type">${Object.entries(labels.productTypes).map(([id, label]) => `<option value="${id}">${label}</option>`).join("")}</select></div>
-        <div class="field"><label>Калории</label><input name="calories" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="ккал"></div>
-        <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
-        <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
-        <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
-        <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="0"></div>
-        <div class="field cooked-field"><label>Вес после приготовления, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="0"></div>
+      <form class="form-grid ${type === "cooked" ? "cooked-mode" : ""}" data-form="product">
+        <div class="field full"><label>Название</label><input name="name" value="${escapeHtml(draft.name || "")}" placeholder="Спагетти" enterkeyhint="next" required></div>
+        <div class="field full"><label>Тип продукта</label><select name="type">${Object.entries(labels.productTypes).map(([id, label]) => `<option value="${id}" ${id === type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
+        <div class="field"><label>Калории</label><input name="calories" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="ккал" value="${escapeHtml(draft.calories || "")}"></div>
+        <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г" value="${escapeHtml(draft.protein || "")}"></div>
+        <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г" value="${escapeHtml(draft.fat || "")}"></div>
+        <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г" value="${escapeHtml(draft.carbs || "")}"></div>
+        <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="0" value="${escapeHtml(draft.cookedDryWeight || "")}"></div>
+        <div class="field cooked-field"><label>Вес после приготовления, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="0" value="${escapeHtml(draft.cookedReadyWeight || "")}"></div>
         <div class="field full"><button class="primary-btn full-btn" type="submit">Сохранить продукт</button></div>
       </form>
     </div>`;
@@ -4682,8 +4908,12 @@ app.addEventListener("pointermove", daySwipeMove);
 app.addEventListener("pointerup", daySwipeEnd);
 app.addEventListener("pointercancel", daySwipeEnd);
 
-app.addEventListener("click", (event) => {
+app.addEventListener("click", async (event) => {
   if (event.target.dataset.modalClose) {
+    if (event.target.dataset.modalClose === "barcode-scanner") {
+      await closeBarcodeScanner(false);
+      return;
+    }
     closeModal(event.target.dataset.modalClose);
     render();
     return;
@@ -4750,6 +4980,14 @@ app.addEventListener("click", (event) => {
   if (button.dataset.action === "toggle-add-create-menu") {
     addCreateMenuOpen = !addCreateMenuOpen;
     render();
+    return;
+  }
+  if (button.dataset.action === "open-barcode-scanner") {
+    openBarcodeScanner();
+    return;
+  }
+  if (button.dataset.action === "close-barcode-scanner") {
+    await closeBarcodeScanner(true);
     return;
   }
   if (button.dataset.addPage) {

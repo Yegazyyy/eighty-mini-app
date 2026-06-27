@@ -1838,6 +1838,10 @@ button:disabled {
   align-items: center;
 }
 
+.add-food-search-row {
+  grid-template-columns: minmax(0, 1fr) 50px 50px;
+}
+
 .library-open-btn {
   width: 50px;
   min-height: 50px;
@@ -1845,6 +1849,10 @@ button:disabled {
   background: var(--green-soft);
   color: #128247;
   font-size: 21px;
+}
+
+.barcode-open-btn {
+  font-size: 23px;
 }
 
 .dish-search-results {
@@ -2299,6 +2307,42 @@ button:disabled {
 .eighty-food-modal {
   max-width: 420px;
   padding: 16px;
+}
+
+.barcode-scanner-modal {
+  max-width: 430px;
+  display: grid;
+  gap: 12px;
+}
+
+.barcode-reader-box {
+  overflow: hidden;
+  min-height: 260px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: #050806;
+}
+
+#barcode-reader {
+  width: 100%;
+  min-height: 260px;
+}
+
+#barcode-reader video {
+  width: 100% !important;
+  min-height: 260px;
+  object-fit: cover;
+}
+
+.barcode-scanner-message {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 850;
+  text-align: center;
 }
 
 .eighty-food-section {
