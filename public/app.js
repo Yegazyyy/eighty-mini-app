@@ -121,7 +121,7 @@ const labels = {
     lunch: {
       label: "Обед",
       short: "Обед",
-      icon: "🍽",
+      icon: "🍽️",
       description: "Основной приём"
     },
     dinner: {
@@ -152,16 +152,20 @@ const icons = {
   profile: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>`,
   prev: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m15 18-6-6 6-6"/></svg>`,
   next: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></svg>`,
-  trash: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 15h10l1-15"/></svg>`
+  trash: `<span class="delete-minus" aria-hidden="true">−</span>`
 };
 
 let state = null;
 let currentUser = { id: "demo-user", telegramId: "", name: "Пользователь", photoUrl: "" };
 let activeScreen = "diary";
+let tabIndicatorFrom = null;
 let selectedDate = todayIso();
 let saveTimer = null;
-let analyticsRange = "week";
 let analyticsDate = todayIso();
+let analyticsView = "daily";
+let analyticsPeriod = { type: "last7", start: "", end: "" };
+let analyticsCustomDraft = { start: "", end: "" };
+let periodSheetOpen = false;
 let favoritesQuery = "";
 let favoritesSort = "az";
 let favoritesPage = "home";
@@ -175,8 +179,12 @@ let entryDraft = { meal: "breakfast", items: {} };
 let mealCartOpen = false;
 let addPanelMode = "existing";
 let addPage = "home";
+let addCreateMenuOpen = false;
 let addFoodSource = "mine";
 let addFoodQuery = "";
+let mealTemplatesVisible = true;
+let templateSourceDate = todayIso();
+let mealTemplateEditor = null;
 let eightyCategoryId = "";
 let eightyFoodDialog = null;
 let eightyImport = { items: {}, query: "" };
@@ -348,6 +356,7 @@ function ensureShape() {
     ...(state.settings || {})
   };
   state.products ||= [];
+  state.mealTemplates ||= [];
   state.eightyOverrides ||= {};
   state.dishes ||= [];
   state.dishes = state.dishes.map((dish) => ({
@@ -459,8 +468,15 @@ function addDays(value, delta) {
   return toIsoDate(date);
 }
 
+function registrationIsoDate() {
+  const raw = state?.createdAt || state?.accountResetAt || new Date().toISOString();
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return todayIso();
+  return toIsoDate(date);
+}
+
 function analyticsMinDate() {
-  return addDays(todayIso(), -29);
+  return registrationIsoDate();
 }
 
 function clampAnalyticsDate(value) {
@@ -526,6 +542,14 @@ function pluralRecord(count) {
   if (mod10 === 1 && mod100 !== 11) return `${count} запись`;
   if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} записи`;
   return `${count} записей`;
+}
+
+function pluralProduct(count) {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  if (mod10 === 1 && mod100 !== 11) return `${count} продукт`;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return `${count} продукта`;
+  return `${count} продуктов`;
 }
 
 function calcTargets() {
@@ -764,8 +788,8 @@ function calcProduct(product, amount) {
   let factor = qty;
   if (product.type === "weight") factor = qty / 100;
   if (product.type === "cooked") {
-    const dry = number(product.cookedDryWeight, 100);
-    const ready = Math.max(1, number(product.cookedReadyWeight, 100));
+    const dry = cookedWeightValue(product.cookedDryWeight, 100);
+    const ready = cookedWeightValue(product.cookedReadyWeight, 230);
     factor = (qty * dry / ready) / 100;
   }
   return {
@@ -997,8 +1021,8 @@ function achievementDefinitions() {
     { id: "streak-30", title: "🔥 30 дней подряд", value: state.stats.maxStreak, target: 30 },
     { id: "water-10", title: "💧 Выполнена норма воды 10 раз", value: waterGoalDays(), target: 10 },
     { id: "water-50", title: "💧 Выполнена норма воды 50 раз", value: waterGoalDays(), target: 50 },
-    { id: "meals-100", title: "🍽 Добавлено 100 приёмов пищи", value: totalMealEntries(), target: 100 },
-    { id: "meals-500", title: "🍽 Добавлено 500 приёмов пищи", value: totalMealEntries(), target: 500 },
+    { id: "meals-100", title: "Добавлено 100 приёмов пищи", value: totalMealEntries(), target: 100 },
+    { id: "meals-500", title: "Добавлено 500 приёмов пищи", value: totalMealEntries(), target: 500 },
     { id: "loss-5", title: "⚖ Потеряно 5 кг", value: weightLost(), target: 5 },
     { id: "loss-10", title: "⚖ Потеряно 10 кг", value: weightLost(), target: 10 },
     { id: "target-weight", title: "⚖ Достигнута цель по весу", value: targetReached() ? 1 : 0, target: 1 }
@@ -1036,14 +1060,25 @@ function earnedAchievementCount() {
 }
 
 function setScreen(screen) {
+  const previousIndex = tabIndicatorIndex(activeScreen);
+  const nextIndex = tabIndicatorIndex(screen);
+  tabIndicatorFrom = previousIndex !== null && nextIndex !== null && previousIndex !== nextIndex
+    ? previousIndex
+    : nextIndex;
   activeScreen = screen;
   closeModal();
   if (screen === "add") {
     addPage = "home";
+    entryDraft.meal = suggestedMealByTime();
+    addCreateMenuOpen = false;
     addPanelMode = "existing";
     addFoodSource = "mine";
     eightyCategoryId = "";
     eightyImport = { items: {}, query: "" };
+  }
+  if (screen === "analytics") {
+    analyticsView = "daily";
+    periodSheetOpen = false;
   }
   if (screen === "favorites") {
     favoritesPage = "home";
@@ -1055,6 +1090,7 @@ function setScreen(screen) {
 
 function setAddPage(page) {
   addPage = page;
+  addCreateMenuOpen = false;
   if (page === "home") {
     eightyImport = { items: {}, query: "" };
     eightyCategoryId = "";
@@ -1063,6 +1099,7 @@ function setAddPage(page) {
     dishBuilder = null;
   }
   if (page === "ration") addFoodSource = "mine";
+  if (page === "template") templateSourceDate = clampTemplateDate(templateSourceDate || todayIso());
   if (page === "dish" && !dishBuilder) dishBuilder = { name: "", query: "", ingredients: [] };
   if (page === "eighty") {
     eightyImport.query = "";
@@ -1103,6 +1140,7 @@ function closeModal(name) {
   if (!name || name === "profile-details") profileDetailsOpen = false;
   if (!name || name === "nutrition-info") nutritionInfoOpen = false;
   if (!name || name === "eighty-food") eightyFoodDialog = null;
+  if (!name || name === "meal-template") mealTemplateEditor = null;
   if (!name || name === "library-editor") libraryEditor = null;
   if (!name || name === "delete-confirm") deleteConfirm = null;
   if (!name || name === "account-delete") accountDeleteOpen = false;
@@ -1112,6 +1150,7 @@ function closeModal(name) {
   }
   if (!name || name === "achievements") achievementsOpen = false;
   if (!name || name === "earned-achievements") earnedAchievementsOpen = false;
+  if (!name || name === "period-sheet") periodSheetOpen = false;
 }
 
 function emptyUserState() {
@@ -1151,6 +1190,7 @@ function emptyUserState() {
       waterGoal: ""
     },
     products: [],
+    mealTemplates: [],
     dishes: [],
     eightyOverrides: {},
     diary: {},
@@ -1169,8 +1209,11 @@ function emptyUserState() {
 
 function resetTransientUiState() {
   selectedDate = todayIso();
-  analyticsRange = "week";
   analyticsDate = todayIso();
+  analyticsView = "daily";
+  analyticsPeriod = { type: "last7", start: "", end: "" };
+  analyticsCustomDraft = { start: "", end: "" };
+  periodSheetOpen = false;
   favoritesQuery = "";
   favoritesSort = "az";
   favoritesPage = "home";
@@ -1184,8 +1227,12 @@ function resetTransientUiState() {
   mealCartOpen = false;
   addPanelMode = "existing";
   addPage = "home";
+  addCreateMenuOpen = false;
   addFoodSource = "mine";
   addFoodQuery = "";
+  mealTemplatesVisible = true;
+  templateSourceDate = todayIso();
+  mealTemplateEditor = null;
   eightyCategoryId = "";
   eightyFoodDialog = null;
   eightyImport = { items: {}, query: "" };
@@ -1271,8 +1318,15 @@ function addMealItems() {
   ].sort((a, b) => a.name.localeCompare(b.name, "ru"));
 }
 
+function eightyAddMealItem(food) {
+  return { ...food, kind: "eighty", builtin: true };
+}
+
 function addMealItemById(id) {
-  return addMealItems().find((item) => item.id === id);
+  const personal = addMealItems().find((item) => item.id === id);
+  if (personal) return personal;
+  const food = eightyFoodById(id);
+  return food ? eightyAddMealItem(food) : null;
 }
 
 function ensureDishBuilder() {
@@ -1312,8 +1366,9 @@ function addIngredientToBuilder(product) {
 
 function selectedMealItems() {
   ensureEntryDraft();
-  return addMealItems()
-    .filter((item) => hasDraftItem(item.id))
+  return Object.keys(entryDraft.items)
+    .map((id) => addMealItemById(id))
+    .filter(Boolean)
     .map((product) => ({ product, amount: entryDraft.items[product.id] }));
 }
 
@@ -1333,7 +1388,62 @@ function productAmountLabel(product) {
 }
 
 function productAmountPlaceholder(product) {
-  return product.type === "piece" ? "2" : "180";
+  return "0";
+}
+
+function productAmountUnit(product) {
+  return product?.type === "piece" ? "шт" : "г";
+}
+
+function productAmountStep(product) {
+  return product?.type === "piece" ? 1 : 10;
+}
+
+function normalizeProductAmount(product, value) {
+  const fallback = number(productAmountPlaceholder(product), productAmountStep(product));
+  const raw = number(value, fallback);
+  const min = product?.type === "piece" ? 1 : 1;
+  const normalized = Math.max(min, raw);
+  return product?.type === "piece" ? Math.round(normalized) : round(normalized, 1);
+}
+
+function cookedWeightValue(value, fallback) {
+  return Math.max(1, number(value, fallback));
+}
+
+function cookedRatioText(product) {
+  const dry = cookedWeightValue(product?.cookedDryWeight, 100);
+  const ready = cookedWeightValue(product?.cookedReadyWeight, 230);
+  return `${round(dry, 1)} г сухого → ${round(ready, 1)} г готового`;
+}
+
+function productTypeLabel(product) {
+  if (product?.type === "cooked") return cookedRatioText(product);
+  return labels.productTypes[product?.type] || labels.productTypes.weight;
+}
+
+function productLibraryTypeLabel(product) {
+  if (product?.type === "cooked") return cookedRatioText(product);
+  if (product?.type === "piece") return labels.productTypes.piece;
+  return "100 г";
+}
+
+function macroBadges(product) {
+  return `<span class="entry-macros library-macros">
+    <span>Б ${round(product?.protein)}</span>
+    <span>Ж ${round(product?.fat)}</span>
+    <span>У ${round(product?.carbs)}</span>
+  </span>`;
+}
+
+function productChoiceLabel(product, withIcon = false) {
+  if (product.kind === "dish") return "Блюдо · на 100 г";
+  const label = productTypeLabel(product);
+  return label;
+}
+
+function builtinBadge(product) {
+  return product?.builtin || product?.kind === "eighty" ? `<span class="builtin-badge">Встроенный</span>` : "";
 }
 
 function formatCartAmount(product, amount) {
@@ -1351,6 +1461,14 @@ function mealButtonLabel(meal) {
   })[meal] || "Добавить в рацион";
 }
 
+function suggestedMealByTime(date = new Date()) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 11) return "breakfast";
+  if (hour >= 11 && hour < 17) return "lunch";
+  if (hour >= 17 && hour < 23) return "dinner";
+  return "snacks";
+}
+
 function toggleProduct(id) {
   ensureEntryDraft();
   const product = addMealItemById(id);
@@ -1358,7 +1476,34 @@ function toggleProduct(id) {
   if (hasDraftItem(id)) delete entryDraft.items[id];
   else entryDraft.items[id] = defaultProductAmount(product);
   mealCartOpen = Object.keys(entryDraft.items).length > 0;
+  const keepSearchActive = activeScreen === "add";
   render();
+  if (keepSearchActive) {
+    const search = app.querySelector("[data-add-food-query]");
+    const cursor = search?.value?.length || 0;
+    search?.focus();
+    search?.setSelectionRange?.(cursor, cursor);
+  }
+}
+
+function stepCartAmount(id, direction) {
+  ensureEntryDraft();
+  const product = addMealItemById(id);
+  if (!product || product.type !== "piece" || !hasDraftItem(id)) return;
+  const step = Number(productAmountStep(product));
+  const hasValue = String(entryDraft.items[id] ?? "").trim() !== "";
+  const current = Number(normalizeProductAmount(product, entryDraft.items[id]));
+  const delta = step * Number(direction || 0);
+  const next = hasValue ? Math.max(1, current + delta) : current;
+  entryDraft.items[id] = Math.round(next);
+  const input = app.querySelector(`[data-cart-amount="${id}"]`);
+  if (input) input.value = entryDraft.items[id];
+  const minus = app.querySelector(`[data-amount-step="${id}"][data-step="-1"]`);
+  if (minus) minus.disabled = entryDraft.items[id] <= 1;
+  const cart = app.querySelector(".meal-cart");
+  if (cart && mealCartOpen) cart.outerHTML = mealCartPanel();
+  const submit = app.querySelector(".add-meal-submit");
+  if (submit) submit.disabled = selectedMealItems().length === 0 || selectedMealItems().some(({ amount }) => number(amount, 0) <= 0);
 }
 
 function addEntry(form) {
@@ -1366,25 +1511,29 @@ function addEntry(form) {
   const data = form ? new FormData(form) : null;
   const meal = data?.get("meal") || entryDraft.meal;
   const selected = selectedMealItems()
-    .map(({ product, amount }) => ({
-      product,
-      amount: product.type === "piece"
-        ? Math.max(1, number(amount, 1))
-        : number(amount, 0)
-    }))
+    .map(({ product, amount }) => {
+      const rawAmount = number(amount, 0);
+      return {
+        product,
+        amount: product.type === "piece" && rawAmount > 0
+          ? Math.max(1, rawAmount)
+          : rawAmount
+      };
+    })
     .filter((item) => item.amount > 0);
 
   if (!selected.length) return toast("Выберите продукты и укажите количество");
 
   for (const { product, amount } of selected) {
+    const diaryProduct = product.kind === "eighty" ? saveEightyProduct(product) : product;
     entriesForDate().push({
       id: uid(),
       meal,
-      productId: product.id,
-      label: product.name,
+      productId: diaryProduct.id,
+      label: diaryProduct.name,
       amount,
-      unit: product.type === "piece" ? "шт." : "г",
-      nutrients: calcProduct(product, amount)
+      unit: diaryProduct.type === "piece" ? "шт." : "г",
+      nutrients: calcProduct(diaryProduct, amount)
     });
   }
   entryDraft = { meal, items: {} };
@@ -1413,8 +1562,8 @@ function addProduct(form) {
     protein: number(data.get("protein")),
     fat: number(data.get("fat")),
     carbs: number(data.get("carbs")),
-    cookedDryWeight: number(data.get("cookedDryWeight"), 100),
-    cookedReadyWeight: number(data.get("cookedReadyWeight"), 230)
+    cookedDryWeight: cookedWeightValue(data.get("cookedDryWeight"), 100),
+    cookedReadyWeight: cookedWeightValue(data.get("cookedReadyWeight"), 230)
   };
   if (!product.name) return toast("Введите название");
   state.products.unshift(product);
@@ -1460,8 +1609,8 @@ function saveProductEdit(form) {
   product.protein = number(data.get("protein"));
   product.fat = number(data.get("fat"));
   product.carbs = number(data.get("carbs"));
-  product.cookedDryWeight = number(product.cookedDryWeight, 100);
-  product.cookedReadyWeight = number(product.cookedReadyWeight, 230);
+  product.cookedDryWeight = cookedWeightValue(data.get("cookedDryWeight"), 100);
+  product.cookedReadyWeight = cookedWeightValue(data.get("cookedReadyWeight"), 230);
   refreshDiaryEntriesForProduct(product);
   libraryEditor = null;
   blurActive();
@@ -1622,6 +1771,7 @@ function confirmDelete() {
   if (deleteConfirm.kind === "dish") deleteDish(deleteConfirm.id);
   if (deleteConfirm.kind === "weight") deleteWeight(deleteConfirm.id);
   if (deleteConfirm.kind === "eighty") deleteEightyFood(deleteConfirm.id);
+  if (deleteConfirm.kind === "template") deleteMealTemplate(deleteConfirm.id);
 }
 
 function addWater(ml) {
@@ -1792,14 +1942,6 @@ function openWeightAdd() {
   render();
 }
 
-function openWeightEditor(id) {
-  const item = state.weightLogs.find((entry) => entry.id === id);
-  if (!item) return;
-  weightEditor = { mode: "edit", id: item.id, date: item.date, weight: item.weight };
-  weightHistoryOpen = true;
-  render();
-}
-
 function saveWeightEntry(form) {
   const date = namedFieldValue(form, "date");
   const weight = number(namedFieldValue(form, "weight"));
@@ -1834,14 +1976,25 @@ function deleteWeight(id) {
 
 function userLibraryItems(query = favoritesQuery) {
   const normalized = query.trim().toLowerCase();
-  return [
-    ...state.products.map((product) => ({ kind: "product", item: product, name: product.name })),
-    ...state.dishes.map((dish) => ({ kind: "dish", item: dish, name: dish.name }))
-  ]
-    .filter((entry) => !normalized || entry.name.toLowerCase().includes(normalized))
-    .sort((a, b) => favoritesSort === "za"
-      ? b.name.localeCompare(a.name, "ru")
-      : a.name.localeCompare(b.name, "ru"));
+  const sortByName = (a, b) => favoritesSort === "za"
+    ? b.name.localeCompare(a.name, "ru")
+    : a.name.localeCompare(b.name, "ru");
+  const matches = (name) => !normalized || String(name || "").toLowerCase().includes(normalized);
+  const products = state.products
+    .map((product) => ({ kind: "product", item: product, name: product.name }))
+    .filter((entry) => matches(entry.name))
+    .sort(sortByName);
+  const dishes = state.dishes
+    .map((dish) => ({ kind: "dish", item: dish, name: dish.name }))
+    .filter((entry) => matches(entry.name))
+    .sort(sortByName);
+  const builtin = normalized
+    ? userEightyFoods()
+      .filter((food) => matches(food.name))
+      .map((food) => ({ kind: "eighty", item: eightyAddMealItem(food), name: food.name }))
+      .sort(sortByName)
+    : [];
+  return [...products, ...dishes, ...builtin];
 }
 
 function onboardingProgress() {
@@ -1894,10 +2047,10 @@ function onboardingStepProfile() {
     </div>
     <form class="form-grid onboarding-form" data-form="onboarding">
       <div class="field full"><label>Имя</label><input name="name" value="${escapeHtml(draft.name)}" placeholder="Ваше имя" required data-onboarding-autofocus></div>
-      <div class="field"><label>Возраст</label><input name="age" type="number" inputmode="numeric" value="${escapeHtml(draft.age)}" placeholder="28" required></div>
+      <div class="field"><label>Возраст</label><input name="age" type="number" inputmode="numeric" value="${escapeHtml(draft.age)}" placeholder="0" required></div>
       <div class="field"><label>Пол</label><select name="sex" required>${option("", "Выберите", draft.sex)}${option("female", "Женский", draft.sex)}${option("male", "Мужской", draft.sex)}${option("other", "Другой", draft.sex)}</select></div>
-      <div class="field"><label>Рост, см</label><input name="height" type="number" inputmode="numeric" value="${escapeHtml(draft.height)}" placeholder="180" required></div>
-      <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${escapeHtml(draft.weight)}" placeholder="99" required></div>
+      <div class="field"><label>Рост, см</label><input name="height" type="number" inputmode="numeric" value="${escapeHtml(draft.height)}" placeholder="0" required></div>
+      <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${escapeHtml(draft.weight)}" placeholder="0" required></div>
       <button class="primary-btn full-btn field full onboarding-main-btn" type="submit">Далее</button>
     </form>
   `, true);
@@ -1939,7 +2092,7 @@ function onboardingStepTarget() {
     </div>
     <form class="form-grid onboarding-form" data-form="onboarding">
       <div class="field full"><label>Текущий вес</label><input value="${escapeHtml(draft.weight)} кг" disabled></div>
-      <div class="field full"><label>Целевой вес, кг</label><input name="targetWeight" type="number" inputmode="decimal" step="0.1" value="${escapeHtml(draft.targetWeight)}" placeholder="${draft.goalMode === "gain" ? "105" : "80"}" required data-onboarding-autofocus></div>
+      <div class="field full"><label>Целевой вес, кг</label><input name="targetWeight" type="number" inputmode="decimal" step="0.1" value="${escapeHtml(draft.targetWeight)}" placeholder="0" required data-onboarding-autofocus></div>
       <button class="primary-btn full-btn field full onboarding-main-btn" type="submit">Далее</button>
     </form>
   `, true);
@@ -2011,7 +2164,7 @@ function render() {
   app.innerHTML = `
     <main class="layout">
       ${screenDiary(targets, consumed)}
-      ${screenAnalytics()}
+      ${screenAnalytics(targets)}
       ${screenAdd()}
       ${screenFavorites()}
       ${screenProfile(targets)}
@@ -2021,16 +2174,38 @@ function render() {
     ${profileDetailsOpen ? profileDetailsModal(targets) : ""}
     ${nutritionInfoOpen ? nutritionInfoModal(targets) : ""}
     ${eightyFoodDialog ? eightyFoodModal() : ""}
+    ${mealTemplateEditor ? mealTemplateModal() : ""}
     ${libraryEditor?.kind === "product" ? productEditModal() : ""}
     ${libraryEditor?.kind === "dish" ? dishEditModal() : ""}
     ${libraryEditor?.kind === "eighty" ? eightyEditModal() : ""}
-    ${weightHistoryOpen ? weightHistoryModal() : ""}
     ${achievementsOpen ? achievementsModal(false) : ""}
     ${earnedAchievementsOpen ? achievementsModal(true) : ""}
+    ${periodSheetOpen ? analyticsPeriodSheet() : ""}
     ${deleteConfirm ? deleteConfirmModal() : ""}
     ${accountDeleteOpen ? accountDeleteModal() : ""}
     ${accountDeleteBusy ? accountDeletingOverlay() : ""}
   `;
+  activateTabIndicatorMotion();
+}
+
+function tabIndicatorIndex(screen) {
+  return ({
+    diary: 0,
+    analytics: 1,
+    favorites: 3,
+    profile: 4
+  })[screen] ?? null;
+}
+
+function activateTabIndicatorMotion() {
+  const nav = app.querySelector(".tabs:not(.nav-ready)");
+  if (!nav) return;
+  const run = () => {
+    nav.classList.add("nav-ready");
+    tabIndicatorFrom = null;
+  };
+  if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
+  else setTimeout(run, 0);
 }
 
 function tabs() {
@@ -2041,7 +2216,13 @@ function tabs() {
     ["favorites", icons.favorite, "Продукты"],
     ["profile", icons.profile, "Профиль"]
   ];
-  return `<nav class="tabs">${items.map(([id, icon, label]) => `
+  const activeIndex = tabIndicatorIndex(activeScreen);
+  const fromIndex = tabIndicatorFrom ?? activeIndex ?? 0;
+  const readyClass = tabIndicatorFrom === null ? "nav-ready" : "";
+  const hiddenClass = activeIndex === null ? "indicator-hidden" : "";
+  return `<nav class="tabs ${readyClass} ${hiddenClass}" data-indicator-index="${activeIndex ?? fromIndex}" data-indicator-from="${fromIndex}">
+    <span class="tab-indicator" aria-hidden="true"></span>
+    ${items.map(([id, icon, label]) => `
     <button class="tab ${activeScreen === id ? "active" : ""} ${id === "add" ? "tab-action" : ""}" data-screen="${id}" title="${label}">
       <span class="tab-icon">${icon}</span>${id === "add" ? "" : `<span>${label}</span>`}
     </button>
@@ -2158,23 +2339,24 @@ function mealCard(meal, data) {
         <span>У ${round(total.carbs)}</span>
       </div>
     </div>
-    ${items.length ? `<div class="meal-items">${items.map(entryRow).join("")}</div>` : `<div class="empty-line">Пока пусто</div>`}
+    ${items.length ? `<div class="meal-items">${items.map(entryRow).join("")}</div>` : `<div class="empty-line">Пока нет добавленных продуктов</div>`}
   </article>`;
 }
 
 function entryRow(item) {
   return `<div class="entry-row">
-    <div>
-      <strong>${escapeHtml(item.label)}</strong>
-      <span>${round(item.nutrients.calories)} ккал</span>
+    <div class="entry-row-main">
+      <div class="entry-row-head">
+        <strong>${escapeHtml(item.label)}</strong>
+      </div>
+      <span class="entry-meta">${round(item.nutrients.calories)} ккал • ${round(item.amount, 1)} ${item.unit}</span>
       <div class="entry-macros">
         <span>Б ${round(item.nutrients.protein)}</span>
         <span>Ж ${round(item.nutrients.fat)}</span>
         <span>У ${round(item.nutrients.carbs)}</span>
       </div>
-      <em>${round(item.amount, 1)} ${item.unit}</em>
     </div>
-    <button class="icon-btn compact" data-delete-entry="${item.id}" title="Удалить">${icons.trash}</button>
+    <button class="icon-btn compact delete-btn" data-delete-entry="${item.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
 
@@ -2199,7 +2381,7 @@ function waterSection() {
       <button class="chip-btn" data-water="1000">+1000 мл</button>
     </div>
     <form class="inline-form" data-form="water">
-      <input name="waterAmount" type="number" min="1" step="1" inputmode="numeric" enterkeyhint="done" placeholder="750 мл">
+      <input name="waterAmount" type="number" min="1" step="1" inputmode="numeric" enterkeyhint="done" placeholder="0 мл">
       <button class="secondary-btn" type="submit">Готово</button>
     </form>
   </section>`;
@@ -2241,32 +2423,28 @@ function waterHistoryRow(item) {
       <span>мл</span>
       <input name="water-${item.id}" type="number" min="0" step="1" inputmode="numeric" value="${round(item.amount)}">
     </label>
-    <button class="icon-btn compact" type="button" data-delete-water="${item.id}" title="Удалить">${icons.trash}</button>
+    <button class="icon-btn compact delete-btn" type="button" data-delete-water="${item.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
 
-function screenAnalytics() {
+function screenAnalytics(targets = calcTargets()) {
   analyticsDate = clampAnalyticsDate(analyticsDate);
-  const history = analyticsHistory();
+  if (analyticsView === "periods") return screenAnalyticsPeriods();
+
   const dayStats = sumNutrients(state.diary[analyticsDate] || []);
-  const stats = analyticsStats(history);
   return `<section class="screen ${activeScreen === "analytics" ? "active" : ""}">
     <div class="stack">
-      <header class="screen-header"><h1>Аналитика</h1></header>
+      <header class="screen-header profile-title">
+        <div class="profile-title-row">
+          <span>ВАШ ПРОГРЕСС И СТАТИСТИКА</span>
+        </div>
+        <h1>Аналитика</h1>
+      </header>
       ${analyticsDateSwitcher()}
-      ${analyticsDayCard(dayStats)}
-      <div class="segmented">
-        ${[["week", "Неделя"], ["month", "Месяц"]].map(([id, label]) => `<button class="${analyticsRange === id ? "active" : ""}" data-range="${id}">${label}</button>`).join("")}
-      </div>
-      ${analyticsHistoryView(history)}
-      <div class="stat-grid analytics-stats">
-        ${statCard("Калории", `${round(stats.calories)} ккал`)}
-        ${statCard("Белки", `${round(stats.protein)} г`)}
-        ${statCard("Жиры", `${round(stats.fat)} г`)}
-        ${statCard("Углеводы", `${round(stats.carbs)} г`)}
-      </div>
+      ${analyticsDayCard(dayStats, targets)}
+      ${todayRationBlock(analyticsDate)}
       ${analyticsWaterCard()}
-      ${periodSummaryCard(stats, history.length)}
+      ${analyticsPeriodsCard()}
     </div>
   </section>`;
 }
@@ -2279,14 +2457,14 @@ function analyticsDateSwitcher() {
   </div>`;
 }
 
-function analyticsDayCard(stats) {
+function analyticsDayCard(stats, targets = calcTargets()) {
   return `<section class="analytics-day-card">
     <span>${analyticsDate === todayIso() ? "Съедено сегодня" : "Съедено за день"}</span>
-    <strong>${round(stats.calories)} ккал</strong>
+    <strong>${round(stats.calories)} / ${targetValue(targets.calories, "ккал")}</strong>
     <div class="day-macro-list">
-      <div><span>Белки</span><b>${round(stats.protein)} г</b></div>
-      <div><span>Жиры</span><b>${round(stats.fat)} г</b></div>
-      <div><span>Углеводы</span><b>${round(stats.carbs)} г</b></div>
+      <div><span>Белки</span><b>${round(stats.protein)} / ${targetValue(targets.protein, "г")}</b></div>
+      <div><span>Жиры</span><b>${round(stats.fat)} / ${targetValue(targets.fat, "г")}</b></div>
+      <div><span>Углеводы</span><b>${round(stats.carbs)} / ${targetValue(targets.carbs, "г")}</b></div>
     </div>
   </section>`;
 }
@@ -2298,7 +2476,7 @@ function analyticsWaterCard() {
   return `<section class="analytics-water-card">
     <div>
       <span>Вода</span>
-      <strong>${round(water)} мл / ${round(goal)} мл</strong>
+      <strong>${round(water)} / ${round(goal)} мл</strong>
       <p>${round(percent)}% выполнено</p>
     </div>
     <div class="progress large water" style="--value:${percent}%"><i></i></div>
@@ -2306,56 +2484,42 @@ function analyticsWaterCard() {
 }
 
 function analyticsHistory() {
-  const days = analyticsRange === "month" ? 30 : 7;
-  const end = new Date(`${analyticsDate}T00:00:00`);
-  const rows = [];
-  for (let index = 0; index < days; index++) {
-    const date = new Date(end);
-    date.setDate(end.getDate() - index);
-    const iso = toIsoDate(date);
-    if (iso < analyticsMinDate() || iso > todayIso()) continue;
-    const items = state.diary[iso] || [];
-    rows.push({ date: iso, nutrients: sumNutrients(items), count: items.length });
-  }
-  return rows;
+  const range = analyticsPeriodRange();
+  return analyticsHistoryForRange(range.start, range.end);
 }
 
 function analyticsStats(history) {
   const totals = { calories: 0, protein: 0, fat: 0, carbs: 0 };
-  let counted = 0;
   let waterPercent = 0;
   let filledDays = 0;
   for (const row of history) {
     waterPercent += clamp(waterTotal(row.date) / Math.max(1, waterGoal()) * 100, 0, 100);
     if (activeDay(row.date)) filledDays++;
-    if (row.count) {
-      totals.calories += row.nutrients.calories;
-      totals.protein += row.nutrients.protein;
-      totals.fat += row.nutrients.fat;
-      totals.carbs += row.nutrients.carbs;
-      counted++;
-    }
+    totals.calories += row.nutrients.calories;
+    totals.protein += row.nutrients.protein;
+    totals.fat += row.nutrients.fat;
+    totals.carbs += row.nutrients.carbs;
   }
-  const divisor = Math.max(1, counted);
+  const divisor = Math.max(1, history.length);
   return {
     calories: totals.calories / divisor,
     protein: totals.protein / divisor,
     fat: totals.fat / divisor,
     carbs: totals.carbs / divisor,
-    waterPercent: waterPercent / Math.max(1, history.length),
+    waterPercent: waterPercent / divisor,
     filledDays
   };
 }
 
 function periodSummaryCard(stats, totalDays) {
   return `<section class="section-block">
-    <h2>${analyticsRange === "month" ? "ИТОГИ МЕСЯЦА" : "ИТОГИ НЕДЕЛИ"}</h2>
+    <h2>ИТОГИ ПЕРИОДА</h2>
     <div class="summary-grid">
-      ${statCard("Среднее ккал", round(stats.calories))}
+      ${statCard("Средние калории", `${round(stats.calories)} ккал`)}
       ${statCard("Средние белки", `${round(stats.protein)} г`)}
       ${statCard("Средние жиры", `${round(stats.fat)} г`)}
       ${statCard("Средние углеводы", `${round(stats.carbs)} г`)}
-      ${statCard("Выполнение воды", `${round(stats.waterPercent)}%`)}
+      ${statCard("Среднее выполнение воды", `${round(stats.waterPercent)}%`)}
       ${statCard("Заполнено дней", `${stats.filledDays} из ${totalDays}`)}
     </div>
   </section>`;
@@ -2383,6 +2547,218 @@ function dayHistoryCard(row) {
   </article>`;
 }
 
+function todayRationBlock(date) {
+  const meals = Object.entries(labels.meals)
+    .map(([meal, data]) => ({ meal, data, items: (state.diary[date] || []).filter((item) => item.meal === meal) }))
+    .filter((group) => group.items.length > 0);
+
+  return `<section class="section-block today-ration">
+    <h2>Рацион за день</h2>
+    <div class="today-ration-list">
+      ${meals.length ? meals.map(rationMealCard).join("") : `<div class="empty-line">За этот день ещё не добавлено ни одного продукта в рацион.</div>`}
+    </div>
+  </section>`;
+}
+
+function rationMealCard(group) {
+  const total = sumNutrients(group.items);
+  return `<article class="ration-meal-card">
+    <div class="ration-meal-head">
+      <div>
+        <h3>${group.data.label}</h3>
+        <strong>${round(total.calories)} ккал</strong>
+      </div>
+      <div class="entry-macros">
+        <span>Б ${round(total.protein)}</span>
+        <span>Ж ${round(total.fat)}</span>
+        <span>У ${round(total.carbs)}</span>
+      </div>
+    </div>
+    <ul class="ration-products">
+      ${group.items.map((item) => `<li>${escapeHtml(item.label)}</li>`).join("")}
+    </ul>
+  </article>`;
+}
+
+function analyticsPeriodsCard() {
+  return `<button class="period-entry-card" type="button" data-action="open-period-analytics">
+    <span>
+      <strong>Аналитика по периодам</strong>
+      <em>Просмотр статистики за неделю, месяц или произвольный диапазон дат.</em>
+    </span>
+    <b>›</b>
+  </button>`;
+}
+
+function screenAnalyticsPeriods() {
+  const range = analyticsPeriodRange();
+  const history = analyticsHistoryForRange(range.start, range.end);
+  const stats = analyticsStats(history);
+  return `<section class="screen ${activeScreen === "analytics" ? "active" : ""}">
+    <div class="stack">
+      <header class="analytics-page-head">
+        <button class="back-link" type="button" data-action="analytics-back">Назад</button>
+        <h1>Аналитика по периодам</h1>
+      </header>
+      <button class="period-picker-btn" type="button" data-action="open-period-sheet">
+        <span>${range.label}</span>
+        <b>⌄</b>
+      </button>
+      ${periodSummaryCard(stats, history.length)}
+      ${analyticsHistoryView(history)}
+      ${bestStatsBlock(history)}
+    </div>
+  </section>`;
+}
+
+function periodOptions() {
+  return [
+    ["last7", "Последние 7 дней"],
+    ["last14", "Последние 14 дней"],
+    ["last30", "Последние 30 дней"],
+    ["last90", "Последние 90 дней"],
+    ["thisMonth", "Этот месяц"],
+    ["prevMonth", "Прошлый месяц"],
+    ["all", "За всё время"],
+    ["custom", "Выбрать диапазон"]
+  ];
+}
+
+function monthStart(value) {
+  const date = new Date(`${value}T00:00:00`);
+  return toIsoDate(new Date(date.getFullYear(), date.getMonth(), 1));
+}
+
+function monthEnd(value) {
+  const date = new Date(`${value}T00:00:00`);
+  return toIsoDate(new Date(date.getFullYear(), date.getMonth() + 1, 0));
+}
+
+function previousMonthRange() {
+  const date = new Date(`${todayIso()}T00:00:00`);
+  date.setMonth(date.getMonth() - 1);
+  const iso = toIsoDate(date);
+  return { start: monthStart(iso), end: monthEnd(iso) };
+}
+
+function analyticsPeriodRange(type = analyticsPeriod.type) {
+  const min = analyticsMinDate();
+  const today = todayIso();
+  let start = today;
+  let end = today;
+  let custom = false;
+  let label = periodOptions().find(([id]) => id === type)?.[1] || "Последние 7 дней";
+
+  if (type?.startsWith("last")) {
+    const days = number(type.replace("last", ""), 7);
+    start = addDays(today, -(days - 1));
+  } else if (type === "thisMonth") {
+    start = monthStart(today);
+  } else if (type === "prevMonth") {
+    const range = previousMonthRange();
+    start = range.start;
+    end = range.end;
+  } else if (type === "all") {
+    start = min;
+  } else if (type === "custom") {
+    start = analyticsPeriod.start || min;
+    end = analyticsPeriod.end || today;
+    custom = true;
+  }
+
+  start = clampDate(start, min, today);
+  end = clampDate(end, min, today);
+  if (start > end) [start, end] = [end, start];
+  if (custom) label = `${formatDayTitle(start)} — ${formatDayTitle(end)}`;
+  return { start, end, label };
+}
+
+function analyticsHistoryForRange(start, end) {
+  const rows = [];
+  const cursor = new Date(`${end}T00:00:00`);
+  const min = new Date(`${start}T00:00:00`);
+  while (cursor >= min) {
+    const iso = toIsoDate(cursor);
+    const items = state.diary[iso] || [];
+    rows.push({ date: iso, nutrients: sumNutrients(items), count: items.length });
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return rows;
+}
+
+function analyticsPeriodSheet() {
+  const min = analyticsMinDate();
+  const today = todayIso();
+  const showCustom = analyticsPeriod.type === "custom";
+  const draftStart = clampDate(analyticsCustomDraft.start || analyticsPeriod.start || min, min, today);
+  const draftEnd = clampDate(analyticsCustomDraft.end || analyticsPeriod.end || today, min, today);
+  return `<div class="modal-backdrop" data-modal-close="period-sheet">
+    <div class="modal-card period-sheet" role="dialog" aria-modal="true" aria-label="Выбор периода">
+      <div class="modal-head">
+        <div>
+          <span>Период</span>
+          <h3>Аналитика по периодам</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-period-sheet">×</button>
+      </div>
+      <div class="period-option-list">
+        ${periodOptions().map(([id, label]) => `<button class="period-option ${analyticsPeriod.type === id ? "active" : ""}" type="button" data-period-type="${id}">${label}</button>`).join("")}
+      </div>
+      ${showCustom ? `<form class="period-custom-form" data-form="period-custom">
+        <div class="form-grid">
+          <div class="field"><label>Начало</label><input name="start" type="date" min="${min}" max="${today}" value="${draftStart}"></div>
+          <div class="field"><label>Окончание</label><input name="end" type="date" min="${min}" max="${today}" value="${draftEnd}"></div>
+        </div>
+        <button class="primary-btn full-btn" type="submit">Показать</button>
+      </form>` : ""}
+    </div>
+  </div>`;
+}
+
+function saveAnalyticsCustomRange(form) {
+  const min = analyticsMinDate();
+  const today = todayIso();
+  let start = clampDate(form.start.value || min, min, today);
+  let end = clampDate(form.end.value || today, min, today);
+  if (start > end) [start, end] = [end, start];
+  analyticsPeriod = { type: "custom", start, end };
+  analyticsCustomDraft = { start, end };
+  periodSheetOpen = false;
+  render();
+}
+
+function bestStatsBlock(history) {
+  const withValues = history.map((row) => ({
+    ...row,
+    water: waterTotal(row.date),
+    calories: row.nutrients.calories,
+    protein: row.nutrients.protein
+  }));
+  const maxProtein = maxBy(withValues, (row) => row.protein);
+  const maxWater = maxBy(withValues, (row) => row.water);
+  const maxCalories = maxBy(withValues, (row) => row.calories);
+  return `<section class="section-block">
+    <h2>ЛУЧШИЕ ПОКАЗАТЕЛИ</h2>
+    <div class="best-stats-list">
+      ${bestStatCard("Максимум белка", maxProtein, `${round(maxProtein?.protein)} г`)}
+      ${bestStatCard("Максимум воды", maxWater, `${round(maxWater?.water)} мл`)}
+      ${bestStatCard("Самый калорийный день", maxCalories, `${round(maxCalories?.calories)} ккал`)}
+    </div>
+  </section>`;
+}
+
+function maxBy(items, getter) {
+  return items.reduce((best, item) => getter(item) > getter(best || item) ? item : best, null);
+}
+
+function bestStatCard(label, row, value) {
+  return `<article class="best-stat-card">
+    <span>${label}</span>
+    <strong>${value || "—"}</strong>
+    <em>${row ? formatDayTitle(row.date) : "Нет данных"}</em>
+  </article>`;
+}
+
 function statCard(label, value) {
   return `<div class="stat-card"><span>${label}</span><strong>${value}</strong></div>`;
 }
@@ -2398,6 +2774,7 @@ function screenAdd() {
 function addPageContent() {
   if (addPage === "ration") return addRationPage();
   if (addPage === "ration-amounts") return addRationAmountsPage();
+  if (addPage === "template") return createTemplatePage();
   if (addPage === "product") return createProductPage();
   if (addPage === "dish") return dishBuilderPanel();
   if (addPage === "dish-library") return dishIngredientLibraryPage();
@@ -2417,22 +2794,234 @@ function addBackHeader(title, backPage = "home") {
 
 function addHomePage() {
   return `
-    <header class="screen-header">
-      <span>ДОБАВЛЕНИЕ</span>
-      <h1>Добавить</h1>
+    <header class="screen-header add-home-head">
+      <span>ДОБАВЛЕНИЕ В ДНЕВНИК</span>
+      <div class="add-title-row">
+        <h1>Выбор продуктов</h1>
+        <div class="add-create-wrap" data-create-menu-root>
+          <button class="add-create-btn" type="button" data-action="toggle-add-create-menu">+ Создать</button>
+          ${addCreateMenuOpen ? addCreateMenu() : ""}
+        </div>
+      </div>
     </header>
-    <div class="add-action-grid">
-      ${addActionCard("📦", "Создать продукт", "product")}
-      ${addActionCard("🍽", "Создать блюдо", "dish")}
-    </div>
     ${addRationPage(false)}`;
 }
 
-function addActionCard(icon, title, page) {
-  return `<button class="add-action-card" type="button" data-add-page="${page}">
-    <span>${icon}</span>
-    <strong>${title}</strong>
+function addCreateMenu() {
+  return `<div class="add-create-menu">
+    <button type="button" data-add-page="product">🥫 Создать продукт</button>
+    <button type="button" data-add-page="dish">🍽️ Создать блюдо</button>
+    <button type="button" data-add-page="template">⭐ Создать шаблон</button>
+  </div>`;
+}
+
+function clampTemplateDate(value) {
+  return clampDate(value || todayIso(), addDays(todayIso(), -7), todayIso());
+}
+
+function templateSourceMeals(date = templateSourceDate) {
+  return Object.entries(labels.meals)
+    .map(([meal, data]) => ({ meal, data, items: (state.diary[date] || []).filter((item) => item.meal === meal) }))
+    .filter((group) => group.items.length > 0);
+}
+
+function mealTemplateStats(items = []) {
+  return sumNutrients(items.map((item) => ({ nutrients: item.nutrients || {} })));
+}
+
+function createTemplatePage() {
+  templateSourceDate = clampTemplateDate(templateSourceDate);
+  const groups = templateSourceMeals(templateSourceDate);
+  return `
+    <header class="screen-header add-subpage-head">
+      <button class="back-link" type="button" data-add-page="home">← Назад</button>
+      <span>ШАБЛОНЫ ПРИЁМОВ ПИЩИ</span>
+      <h1>Создать шаблон</h1>
+    </header>
+    ${templateDateSwitcher()}
+    <div class="template-source-list">
+      ${groups.length
+        ? groups.map(templateSourceMealCard).join("")
+        : `<div class="big-empty compact-empty"><div><strong>Нет заполненных приёмов пищи</strong><span>Выберите другой день за последнюю неделю.</span></div></div>`}
+    </div>`;
+}
+
+function templateDateSwitcher() {
+  const min = addDays(todayIso(), -7);
+  const isToday = templateSourceDate >= todayIso();
+  const isMin = templateSourceDate <= min;
+  return `<div class="date-switcher">
+    <button class="icon-btn" type="button" data-template-date-step="-1" title="Предыдущий день" ${isMin ? "disabled" : ""}>${icons.prev}</button>
+    <strong>${formatDayTitle(templateSourceDate)}</strong>
+    <button class="icon-btn" type="button" data-template-date-step="1" title="Следующий день" ${isToday ? "disabled" : ""}>${icons.next}</button>
+  </div>`;
+}
+
+function templateSourceMealCard(group) {
+  const stats = mealTemplateStats(group.items);
+  return `<button class="template-source-card" type="button" data-create-template-meal="${group.meal}">
+    <span>
+      <strong>${group.data.label}</strong>
+      <em>${pluralProduct(group.items.length)}</em>
+    </span>
+    <b>${round(stats.calories)} ккал</b>
+    <div class="template-macros">
+      <span>Б ${round(stats.protein)}</span>
+      <span>Ж ${round(stats.fat)}</span>
+      <span>У ${round(stats.carbs)}</span>
+    </div>
   </button>`;
+}
+
+function templatesSection() {
+  const templates = state.mealTemplates || [];
+  return `<section class="templates-panel">
+    <div class="templates-head">
+      <h2>ШАБЛОНЫ</h2>
+      <button class="ios-switch ${mealTemplatesVisible ? "active" : ""}" type="button" data-action="toggle-templates" aria-label="Показать шаблоны" aria-pressed="${mealTemplatesVisible}"><i></i></button>
+    </div>
+    ${mealTemplatesVisible ? `<div class="template-list">
+      ${templates.length ? templates.map(mealTemplateCard).join("") : `<div class="empty-line">Сохранённых шаблонов пока нет</div>`}
+    </div>` : ""}
+  </section>`;
+}
+
+function mealTemplateCard(template) {
+  const stats = mealTemplateStats(template.items || []);
+  return `<article class="template-card">
+    <button class="template-card-main" type="button" data-use-template="${template.id}">
+      <strong>${escapeHtml(template.name || "Шаблон")}</strong>
+      <em>${pluralProduct((template.items || []).length)}</em>
+      <b>${round(stats.calories)} ккал</b>
+      <div class="template-macros">
+        <span>Б ${round(stats.protein)}</span>
+        <span>Ж ${round(stats.fat)}</span>
+        <span>У ${round(stats.carbs)}</span>
+      </div>
+    </button>
+    <div class="template-actions">
+      <button class="icon-btn compact neutral" type="button" data-edit-template="${template.id}" title="Переименовать">✎</button>
+      <button class="icon-btn compact delete-btn" type="button" data-confirm-delete-template="${template.id}" title="Удалить">${icons.trash}</button>
+    </div>
+  </article>`;
+}
+
+function openTemplateCreator(meal) {
+  const group = templateSourceMeals(templateSourceDate).find((item) => item.meal === meal);
+  if (!group?.items?.length) return toast("В этом приёме нет продуктов");
+  mealTemplateEditor = {
+    mode: "create",
+    date: templateSourceDate,
+    meal,
+    name: group.data.label
+  };
+  render();
+}
+
+function openTemplateRename(id) {
+  const template = (state.mealTemplates || []).find((item) => item.id === id);
+  if (!template) return;
+  mealTemplateEditor = { mode: "rename", id, name: template.name || "" };
+  render();
+}
+
+function mealTemplateModal() {
+  const editor = mealTemplateEditor;
+  if (!editor) return "";
+  const isCreate = editor.mode === "create";
+  return `<div class="modal-backdrop" data-modal-close="meal-template">
+    <div class="modal-card meal-template-modal" role="dialog" aria-modal="true" aria-label="${isCreate ? "Создание шаблона" : "Переименование шаблона"}">
+      <div class="modal-head">
+        <div>
+          <span>${isCreate ? "⭐ Новый шаблон" : "⭐ Шаблон"}</span>
+          <h3>${isCreate ? "Название шаблона" : "Переименовать"}</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-meal-template">×</button>
+      </div>
+      <form class="form-grid" data-form="meal-template">
+        <input type="hidden" name="mode" value="${escapeHtml(editor.mode)}">
+        <input type="hidden" name="id" value="${escapeHtml(editor.id || "")}">
+        <input type="hidden" name="date" value="${escapeHtml(editor.date || "")}">
+        <input type="hidden" name="meal" value="${escapeHtml(editor.meal || "")}">
+        <div class="field full"><label>Название шаблона</label><input name="name" value="${escapeHtml(editor.name || "")}" placeholder="Любимый ужин" required></div>
+        <div class="modal-actions field full">
+          <button class="secondary-btn" type="button" data-action="close-meal-template">Отмена</button>
+          <button class="primary-btn" type="submit">Сохранить</button>
+        </div>
+      </form>
+    </div>
+  </div>`;
+}
+
+function saveMealTemplate(form) {
+  const data = new FormData(form);
+  const name = String(data.get("name") || "").trim();
+  if (!name) return toast("Введите название");
+  const mode = data.get("mode");
+  if (mode === "rename") {
+    const template = (state.mealTemplates || []).find((item) => item.id === data.get("id"));
+    if (!template) return;
+    template.name = name;
+    mealTemplateEditor = null;
+    persist();
+    render();
+    toast("Шаблон сохранён");
+    return;
+  }
+
+  const date = clampTemplateDate(data.get("date"));
+  const meal = data.get("meal");
+  const items = (state.diary[date] || []).filter((item) => item.meal === meal);
+  if (!items.length) return toast("В этом приёме нет продуктов");
+  state.mealTemplates ||= [];
+  state.mealTemplates.unshift({
+    id: uid(),
+    name,
+    sourceDate: date,
+    sourceMeal: meal,
+    createdAt: new Date().toISOString(),
+    items: items.map((item) => ({
+      productId: item.productId || "",
+      label: item.label || "",
+      amount: item.amount,
+      unit: item.unit || "г",
+      nutrients: { ...(item.nutrients || {}) }
+    }))
+  });
+  mealTemplateEditor = null;
+  mealTemplatesVisible = true;
+  persist();
+  render();
+  toast("Шаблон создан");
+}
+
+function useMealTemplate(id) {
+  const template = (state.mealTemplates || []).find((item) => item.id === id);
+  if (!template?.items?.length) return;
+  const meal = entryDraft.meal || "breakfast";
+  for (const item of template.items) {
+    entriesForDate().push({
+      id: uid(),
+      meal,
+      productId: item.productId || "",
+      label: item.label || "Продукт",
+      amount: item.amount,
+      unit: item.unit || "г",
+      nutrients: { ...(item.nutrients || {}) }
+    });
+  }
+  persist();
+  render();
+  toast("Шаблон добавлен");
+}
+
+function deleteMealTemplate(id) {
+  state.mealTemplates = (state.mealTemplates || []).filter((item) => item.id !== id);
+  deleteConfirm = null;
+  mealTemplateEditor = null;
+  persist();
+  render();
+  toast("Шаблон удалён");
 }
 
 function addRationPage(showHeader = true) {
@@ -2441,14 +3030,12 @@ function addRationPage(showHeader = true) {
   return `
     ${showHeader ? addBackHeader("Добавить в рацион") : ""}
     <div class="add-meal-flow add-ration-page">
-      <div class="segmented meal-segments">
-        ${Object.entries(labels.meals).map(([id, data]) => `<button class="${entryDraft.meal === id ? "active" : ""}" type="button" data-add-meal="${id}">${data.short}</button>`).join("")}
-      </div>
+      ${templatesSection()}
       <div class="dish-search-row"><input class="search-input" data-add-food-query value="${escapeHtml(addFoodQuery)}" placeholder="Поиск продуктов и блюд"><button class="icon-btn library-open-btn" type="button" data-add-page="eighty" title="База Eighty">📚</button></div>
       <div class="product-choice-list">
         ${products.length
           ? products.map(rationChoiceCard).join("")
-          : `<div class="big-empty compact-empty"><div><strong>Ничего не найдено</strong><span>Здесь отображаются только ваши продукты и блюда.</span></div></div>`}
+          : `<div class="big-empty compact-empty"><div><strong>Ничего не найдено</strong><span>Попробуйте изменить запрос или открыть каталог Eighty.</span></div></div>`}
       </div>
       <button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="button" data-action="ration-next" ${selectedCount ? "" : "disabled"}>Добавить (${selectedCount})</button>
     </div>`;
@@ -2456,26 +3043,39 @@ function addRationPage(showHeader = true) {
 
 function rationChoiceCard(product) {
   const selected = hasDraftItem(product.id);
-  const label = product.kind === "dish" ? "🍽 Блюдо · на 100 г" : `📦 ${labels.productTypes[product.type]}`;
+  const label = productChoiceLabel(product, true);
   return `<article class="product-choice ration-choice ${selected ? "selected" : ""}">
     <button class="product-choice-main" type="button" data-toggle-product="${product.id}">
-      <span>
+      <span class="product-choice-copy">
         <strong>${escapeHtml(product.name)}</strong>
         <em>${label}</em>
+        ${productMacroStrip(product)}
       </span>
-      <b>${round(product.calories)} ккал</b>
+      <span class="product-choice-side">
+        ${builtinBadge(product)}
+        <b>${round(product.calories)} ккал</b>
+      </span>
       ${selected ? `<i class="choice-check">✓</i>` : ""}
     </button>
   </article>`;
 }
 
+function productMacroStrip(product) {
+  return `<span class="product-choice-macros">
+    <span>Б ${round(product.protein, 1)}</span>
+    <span>Ж ${round(product.fat, 1)}</span>
+    <span>У ${round(product.carbs, 1)}</span>
+  </span>`;
+}
+
 function addRationAmountsPage() {
   const items = selectedMealItems();
-  const complete = items.length && items.every(({ product, amount }) => product.type === "piece" ? number(amount, 1) > 0 : number(amount) > 0);
+  const complete = items.length && items.every(({ amount }) => number(amount, 0) > 0);
   return `
     ${addBackHeader("Количество", "ration")}
     <form class="add-meal-flow" data-form="entry">
       <input type="hidden" name="meal" value="${entryDraft.meal}">
+      ${amountMealPicker()}
       <div class="product-choice-list">
         ${items.length ? items.map(rationAmountCard).join("") : `<div class="empty-line">Выберите продукты</div>`}
       </div>
@@ -2483,18 +3083,38 @@ function addRationAmountsPage() {
     </form>`;
 }
 
+function amountMealPicker() {
+  const meals = Object.entries(labels.meals);
+  const activeIndex = Math.max(0, meals.findIndex(([id]) => entryDraft.meal === id));
+  return `<div class="amount-meal-picker" data-active-index="${activeIndex}" role="group" aria-label="Приём пищи">
+    ${meals.map(([id, data]) => `<button class="${entryDraft.meal === id ? "active" : ""}" type="button" data-add-meal="${id}">
+      <span>${data.icon}</span>
+      <strong>${data.short}</strong>
+    </button>`).join("")}
+  </div>`;
+}
+
 function rationAmountCard({ product, amount }) {
-  return `<article class="product-choice selected">
+  const label = product.kind === "dish" ? "Вес порции, г" : productAmountLabel(product);
+  const unit = productAmountUnit(product);
+  const isPiece = product.type === "piece";
+  const currentAmount = normalizeProductAmount(product, amount);
+  const minusDisabled = isPiece && Number(currentAmount) <= 1;
+  return `<article class="product-choice selected amount-card">
     <div class="product-choice-main static-choice">
       <span>
         <strong>${escapeHtml(product.name)}</strong>
-        <em>${product.kind === "dish" ? "Вес порции, г" : productAmountLabel(product)}</em>
+        <em>${label}</em>
       </span>
       <b>${round(product.calories)} ккал</b>
     </div>
-    <div class="product-choice-amount">
-      <label for="amount-${product.id}">${productAmountLabel(product)}</label>
-      <input id="amount-${product.id}" data-cart-amount="${product.id}" type="number" min="1" step="${product.type === "piece" ? "1" : "0.1"}" inputmode="${product.type === "piece" ? "numeric" : "decimal"}" enterkeyhint="next" placeholder="${productAmountPlaceholder(product)}" value="${escapeHtml(amount)}">
+    <div class="product-choice-amount amount-stepper ${isPiece ? "piece-stepper" : "manual-amount"}">
+      ${isPiece ? `<button class="amount-step-btn" type="button" data-amount-step="${product.id}" data-step="-1" aria-label="Уменьшить количество" ${minusDisabled ? "disabled" : ""}>−</button>` : ""}
+      <label class="amount-value" for="amount-${product.id}">
+        <input id="amount-${product.id}" data-cart-amount="${product.id}" type="number" min="1" step="${product.type === "piece" ? "1" : "0.1"}" inputmode="${product.type === "piece" ? "numeric" : "decimal"}" enterkeyhint="next" aria-label="${label}" placeholder="${productAmountPlaceholder(product)}" value="${escapeHtml(amount)}">
+        <span>${unit}</span>
+      </label>
+      ${isPiece ? `<button class="amount-step-btn" type="button" data-amount-step="${product.id}" data-step="1" aria-label="Увеличить количество">+</button>` : ""}
     </div>
   </article>`;
 }
@@ -2502,11 +3122,8 @@ function rationAmountCard({ product, amount }) {
 function existingProductPanel() {
   const products = filteredAddProducts();
   return `<form class="add-meal-flow" data-form="entry">
-    <div class="segmented meal-segments">
-      ${Object.entries(labels.meals).map(([id, data]) => `<button class="${entryDraft.meal === id ? "active" : ""}" type="button" data-add-meal="${id}">${data.short}</button>`).join("")}
-    </div>
     <input type="hidden" name="meal" value="${entryDraft.meal}">
-    <input class="search-input" data-add-food-query value="${escapeHtml(addFoodQuery)}" placeholder="Поиск продуктов">
+    <input class="search-input" data-add-food-query value="${escapeHtml(addFoodQuery)}" placeholder="Поиск продуктов и блюд">
     ${mealCartPanel()}
     ${myFoodPanel(products)}
   </form>`;
@@ -2514,10 +3131,13 @@ function existingProductPanel() {
 
 function filteredAddProducts() {
   const query = addFoodQuery.trim().toLowerCase();
-  const items = addMealItems();
-  return query
-    ? items.filter((item) => item.name.toLowerCase().includes(query))
-    : items;
+  const personal = addMealItems();
+  if (!query) return personal;
+  const personalMatches = personal.filter((item) => item.name.toLowerCase().includes(query));
+  const eightyMatches = userEightyFoods()
+    .filter((item) => item.name.toLowerCase().includes(query))
+    .map(eightyAddMealItem);
+  return [...personalMatches, ...eightyMatches];
 }
 
 function myFoodPanel(products) {
@@ -2562,9 +3182,12 @@ function eightyFoodCard(product) {
     <button class="product-choice-main" type="button" data-eighty-food="${product.id}">
       <span>
         <strong>${escapeHtml(product.name)}</strong>
-        <em>${product.categoryIcon} ${product.categoryLabel} · на 100 г</em>
+        <em>${product.categoryLabel} · на 100 г</em>
       </span>
-      <b>${round(product.calories)} ккал</b>
+      <span class="product-choice-side">
+        ${builtinBadge(product)}
+        <b>${round(product.calories)} ккал</b>
+      </span>
     </button>
     <div class="eighty-macro-line">
       <span>Б ${round(product.protein, 1)}</span>
@@ -2607,7 +3230,7 @@ function eightyCategoryPage() {
   const products = visibleEightyProducts(category.id);
   const selectedCount = selectedEightyFoods().length;
   return `
-    ${addBackHeader(`${category.icon} ${category.label}`, "eighty")}
+    ${addBackHeader(`${category.label}`, "eighty")}
     <div class="add-meal-flow">
       <input class="search-input" data-eighty-import-query value="${escapeHtml(eightyImport.query || "")}" placeholder="Поиск">
       <div class="product-choice-list">
@@ -2625,7 +3248,7 @@ function eightyImportChoiceCard(product) {
     <button class="product-choice-main" type="button" data-toggle-eighty-import="${product.id}">
       <span>
         <strong>${escapeHtml(product.name)}</strong>
-        <em>${product.categoryIcon} ${product.categoryLabel} · на 100 г</em>
+        <em>${product.categoryLabel} · на 100 г</em>
       </span>
       <b>${round(product.calories)} ккал</b>
       ${selected ? `<i class="choice-check">✓</i>` : ""}
@@ -2657,7 +3280,7 @@ function eightyImportAmountCard(product) {
     </div>
     <div class="product-choice-amount">
       <label for="eighty-import-${product.id}">Вес, г</label>
-      <input id="eighty-import-${product.id}" name="eighty-${product.id}" data-eighty-import-amount="${product.id}" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="300" value="${escapeHtml(eightyImport.items[product.id])}">
+      <input id="eighty-import-${product.id}" name="eighty-${product.id}" data-eighty-import-amount="${product.id}" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="0" value="${escapeHtml(eightyImport.items[product.id])}">
     </div>
   </article>`;
 }
@@ -2705,7 +3328,7 @@ function eightyFoodModal() {
     <div class="modal-card eighty-food-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(food.name)}">
       <div class="modal-head">
         <div>
-          <span>${food.categoryIcon} ${food.categoryLabel}</span>
+          <span>${food.categoryLabel}</span>
           <h3>${escapeHtml(food.name)}</h3>
         </div>
         <button class="icon-btn compact neutral" type="button" data-action="close-eighty-food">×</button>
@@ -2809,14 +3432,17 @@ function mealCartPanel() {
 function productChoiceCard(product) {
   const selected = hasDraftItem(product.id);
   const amount = entryDraft.items[product.id];
-  const label = product.kind === "dish" ? "🍽 Блюдо · на 100 г" : labels.productTypes[product.type];
+  const label = productChoiceLabel(product);
   return `<article class="product-choice ${selected ? "selected" : ""}">
     <button class="product-choice-main" type="button" data-toggle-product="${product.id}">
       <span>
         <strong>${escapeHtml(product.name)}</strong>
         <em>${label}</em>
       </span>
-      <b>${round(product.calories)} ккал</b>
+      <span class="product-choice-side">
+        ${builtinBadge(product)}
+        <b>${round(product.calories)} ккал</b>
+      </span>
     </button>
     ${selected ? `<div class="product-choice-amount">
       <label for="amount-${product.id}">${productAmountLabel(product)}</label>
@@ -2828,7 +3454,6 @@ function productChoiceCard(product) {
 function manualProductForm() {
   return `<div class="panel">
     <button class="create-dish-btn" type="button" data-action="open-dish-builder">
-      <span>🍽</span>
       <strong>Создать блюдо</strong>
     </button>
     <form class="form-grid" data-form="product">
@@ -2838,8 +3463,8 @@ function manualProductForm() {
       <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
       <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
       <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
-      <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="100"></div>
-      <div class="field cooked-field"><label>Готовый вес, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="230"></div>
+      <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="0"></div>
+      <div class="field cooked-field"><label>Вес после приготовления, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="0"></div>
       <div class="field full"><button class="primary-btn" type="submit">Сохранить продукт</button></div>
     </form>
   </div>`;
@@ -2856,8 +3481,8 @@ function createProductPage() {
         <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
         <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
         <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
-        <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="100"></div>
-        <div class="field cooked-field"><label>Готовый вес, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="230"></div>
+        <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="0"></div>
+        <div class="field cooked-field"><label>Вес после приготовления, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="0"></div>
         <div class="field full"><button class="primary-btn full-btn" type="submit">Сохранить продукт</button></div>
       </form>
     </div>`;
@@ -2894,7 +3519,7 @@ function dishBuilderPanel() {
 
 function dishSearchResult(entry) {
   const product = entry.product;
-  const label = "📦 Мои продукты";
+  const label = "Мои продукты";
   return `<button class="dish-search-result" type="button" data-add-builder-product="${product.id}">
     <span><strong>${escapeHtml(product.name)}</strong><em>${label}</em></span>
     <b>${round(product.calories)} ккал</b>
@@ -2927,7 +3552,7 @@ function dishIngredientLibraryPage() {
     ${addBackHeader("Выберите ингредиенты", "dish")}
     <div class="add-meal-flow">
       <div class="segmented food-source-segments">
-        <button class="${ingredientPicker.source === "mine" ? "active" : ""}" type="button" data-ingredient-source="mine">📦 Мои продукты</button>
+        <button class="${ingredientPicker.source === "mine" ? "active" : ""}" type="button" data-ingredient-source="mine">Мои продукты</button>
         <button class="${ingredientPicker.source === "eighty" ? "active" : ""}" type="button" data-ingredient-source="eighty">📚 База Eighty</button>
       </div>
       ${ingredientPicker.source === "eighty" && !ingredientPicker.categoryId && !ingredientPicker.query.trim() ? `<div class="eighty-category-list">
@@ -2936,7 +3561,7 @@ function dishIngredientLibraryPage() {
           <strong>${item.label}</strong>
         </button>`).join("")}
       </div>` : ""}
-      ${ingredientPicker.source === "eighty" && category ? `<button class="secondary-btn compact-back" type="button" data-ingredient-category="">← ${category.icon} ${category.label}</button>` : ""}
+      ${ingredientPicker.source === "eighty" && category ? `<button class="secondary-btn compact-back" type="button" data-ingredient-category="">← ${category.label}</button>` : ""}
       <input class="search-input" data-ingredient-picker-query value="${escapeHtml(ingredientPicker.query || "")}" placeholder="Поиск">
       ${ingredientPicker.source === "mine" || ingredientPicker.categoryId || ingredientPicker.query.trim() ? `<div class="product-choice-list">
         ${items.length
@@ -2950,8 +3575,8 @@ function dishIngredientLibraryPage() {
 function ingredientPickerCard(item) {
   const selected = Object.prototype.hasOwnProperty.call(ingredientPicker.items, item.id);
   const label = ingredientPicker.source === "eighty"
-    ? `${item.categoryIcon} ${item.categoryLabel}`
-    : item.kind === "dish" ? "🍽 Блюдо" : "📦 Продукт";
+    ? `${item.categoryLabel}`
+    : item.kind === "dish" ? "Блюдо" : "Продукт";
   return `<article class="product-choice ration-choice ${selected ? "selected" : ""}">
     <button class="product-choice-main" type="button" data-toggle-ingredient-picker="${item.id}">
       <span>
@@ -2988,7 +3613,7 @@ function ingredientPickerAmountCard(item) {
     </div>
     <div class="product-choice-amount">
       <label for="ingredient-picker-${item.id}">Вес, г</label>
-      <input id="ingredient-picker-${item.id}" name="ingredient-${item.id}" data-ingredient-picker-amount="${item.id}" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="250" value="${escapeHtml(ingredientPicker.items[item.id])}">
+      <input id="ingredient-picker-${item.id}" name="ingredient-${item.id}" data-ingredient-picker-amount="${item.id}" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="0" value="${escapeHtml(ingredientPicker.items[item.id])}">
     </div>
   </article>`;
 }
@@ -2999,7 +3624,7 @@ function builderIngredientRow(ingredient) {
   return `<div class="builder-ingredient-row" data-builder-ingredient="${ingredient.id}">
     <div><strong>${escapeHtml(product.name)}</strong><span>${round(product.calories)} ккал на 100 г</span></div>
     <input name="builderIngredientAmount" type="number" min="1" step="0.1" inputmode="decimal" value="${ingredient.amount || ""}" placeholder="г">
-    <button class="icon-btn compact" type="button" data-remove-builder-ingredient="${ingredient.id}" title="Удалить">${icons.trash}</button>
+    <button class="icon-btn compact delete-btn" type="button" data-remove-builder-ingredient="${ingredient.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
 
@@ -3010,7 +3635,12 @@ function screenFavorites() {
   const items = userLibraryItems(query);
   return `<section class="screen ${activeScreen === "favorites" ? "active" : ""}">
     <div class="stack">
-      <header class="screen-header"><h1>Мои продукты</h1><p>Ваша личная библиотека продуктов и блюд</p></header>
+      <header class="screen-header profile-title">
+        <div class="profile-title-row">
+          <span>ВАША БИБЛИОТЕКА ПРОДУКТОВ И БЛЮД</span>
+        </div>
+        <h1>Продукты</h1>
+      </header>
       <div class="favorites-tools">
         <div class="dish-search-row"><input class="search-input" data-favorites-query value="${escapeHtml(favoritesQuery)}" placeholder="Поиск"><button class="icon-btn library-open-btn" type="button" data-favorites-page="eighty" title="База Eighty">📚</button></div>
         <div class="segmented sort-segments">
@@ -3059,7 +3689,7 @@ function screenFavoritesEightyCategory() {
   const products = favoriteEightyProducts(category.id);
   return `<section class="screen ${activeScreen === "favorites" ? "active" : ""}">
     <div class="stack">
-      ${favoritesBackHeader(`${category.icon} ${category.label}`, "eighty")}
+      ${favoritesBackHeader(`${category.label}`, "eighty")}
       <input class="search-input" data-favorites-eighty-query value="${escapeHtml(favoritesEightyQuery)}" placeholder="Поиск">
       <div class="product-choice-list">
         ${products.length
@@ -3075,7 +3705,7 @@ function favoriteEightyCard(product) {
     <button class="product-choice-main" type="button" data-edit-eighty-product="${product.id}">
       <span>
         <strong>${escapeHtml(product.name)}</strong>
-        <em>${product.categoryIcon} ${product.categoryLabel} · на 100 г</em>
+        <em>${product.categoryLabel} · на 100 г</em>
       </span>
       <b>${round(product.calories)} ккал</b>
     </button>
@@ -3088,27 +3718,50 @@ function favoriteEightyCard(product) {
 }
 
 function libraryRow(entry) {
-  return entry.kind === "dish" ? dishRow(entry.item) : productRow(entry.item);
+  if (entry.kind === "dish") return dishRow(entry.item);
+  if (entry.kind === "eighty") return eightyLibraryRow(entry.item);
+  return productRow(entry.item);
 }
 
 function productRow(product) {
-  return `<div class="product-row item-card">
+  return `<div class="product-row item-card library-product-card">
     <button class="library-card-main" type="button" data-edit-product="${product.id}">
-      <strong>📦 ${escapeHtml(product.name)}</strong>
-      <span>Продукт · ${labels.productTypes[product.type]} · ${round(product.calories)} ккал · Б ${round(product.protein)} Ж ${round(product.fat)} У ${round(product.carbs)}</span>
+      <span class="library-card-head">
+        <strong>${escapeHtml(product.name)}</strong>
+      </span>
+      <span class="library-card-meta">${round(product.calories)} ккал • ${productLibraryTypeLabel(product)}</span>
+      ${macroBadges(product)}
     </button>
-    <button class="icon-btn compact" data-confirm-delete-product="${product.id}" title="Удалить">${icons.trash}</button>
+    <button class="icon-btn compact delete-btn" data-confirm-delete-product="${product.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
 
 function dishRow(dish) {
   const totals = calcDish(dish);
-  return `<div class="product-row item-card">
+  const product = dishAsProduct(dish);
+  return `<div class="product-row item-card library-product-card">
     <button class="library-card-main" type="button" data-edit-dish="${dish.id}">
-      <strong>🍽 ${escapeHtml(dish.name || "Блюдо")}</strong>
-      <span>Блюдо · ${round(totals.totalWeight)} г · ${round(totals.per100.calories)} ккал на 100 г · ${totals.ingredients.length} ингредиентов</span>
+      <span class="library-card-head">
+        <strong>${escapeHtml(dish.name || "Блюдо")}</strong>
+      </span>
+      <span class="library-card-meta">${round(totals.per100.calories)} ккал • 100 г</span>
+      ${macroBadges(product)}
     </button>
-    <button class="icon-btn compact" data-confirm-delete-dish="${dish.id}" title="Удалить">${icons.trash}</button>
+    <button class="icon-btn compact delete-btn" data-confirm-delete-dish="${dish.id}" title="Удалить">${icons.trash}</button>
+  </div>`;
+}
+
+function eightyLibraryRow(product) {
+  return `<div class="product-row item-card library-product-card">
+    <button class="library-card-main" type="button" data-edit-eighty-product="${product.id}">
+      <span class="library-card-head">
+        <strong>${escapeHtml(product.name)}</strong>
+        ${builtinBadge(product)}
+      </span>
+      <span class="library-card-meta">${round(product.calories)} ккал • 100 г</span>
+      ${macroBadges(product)}
+    </button>
+    <span class="library-card-action-space" aria-hidden="true"></span>
   </div>`;
 }
 
@@ -3147,12 +3800,12 @@ function productEditModal() {
     <div class="modal-card library-edit-modal" role="dialog" aria-modal="true" aria-label="Редактирование продукта">
       <div class="modal-head">
         <div>
-          <span>📦 Продукт</span>
+          <span>Продукт</span>
           <h3>${escapeHtml(product.name || "Продукт")}</h3>
         </div>
         <button class="icon-btn compact neutral" type="button" data-action="close-library-editor">×</button>
       </div>
-      <form class="form-grid" data-form="product-edit">
+      <form class="form-grid ${product.type === "cooked" ? "cooked-mode" : ""}" data-form="product-edit">
         <input type="hidden" name="id" value="${product.id}">
         <div class="field full"><label>Название</label><input name="name" value="${escapeHtml(product.name || "")}" required></div>
         <div class="field full"><label>Тип продукта</label><select name="type">${Object.entries(labels.productTypes).map(([id, label]) => option(id, label, product.type)).join("")}</select></div>
@@ -3160,6 +3813,8 @@ function productEditModal() {
         <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" value="${product.protein || ""}"></div>
         <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" value="${product.fat || ""}"></div>
         <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" value="${product.carbs || ""}"></div>
+        <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" min="1" step="1" inputmode="numeric" value="${cookedWeightValue(product.cookedDryWeight, 100)}"></div>
+        <div class="field cooked-field"><label>Вес после приготовления, г</label><input name="cookedReadyWeight" type="number" min="1" step="1" inputmode="numeric" value="${cookedWeightValue(product.cookedReadyWeight, 230)}"></div>
         <div class="modal-actions field full">
           <button class="danger-btn" type="button" data-confirm-delete-product="${product.id}">Удалить</button>
           <button class="primary-btn" type="submit">Сохранить</button>
@@ -3176,7 +3831,7 @@ function eightyEditModal() {
     <div class="modal-card library-edit-modal" role="dialog" aria-modal="true" aria-label="Редактирование продукта базы Eighty">
       <div class="modal-head">
         <div>
-          <span>${product.categoryIcon} ${product.categoryLabel}</span>
+          <span>${product.categoryLabel}</span>
           <h3>${escapeHtml(product.name || "Продукт")}</h3>
         </div>
         <button class="icon-btn compact neutral" type="button" data-action="close-library-editor">×</button>
@@ -3205,7 +3860,7 @@ function dishEditModal() {
     <div class="modal-card library-edit-modal dish-edit-modal" role="dialog" aria-modal="true" aria-label="Редактирование блюда">
       <div class="modal-head">
         <div>
-          <span>🍽 Блюдо</span>
+          <span>Блюдо</span>
           <h3>${escapeHtml(dish.name || "Блюдо")}</h3>
         </div>
         <button class="icon-btn compact neutral" type="button" data-action="close-library-editor">×</button>
@@ -3232,11 +3887,11 @@ function dishEditModal() {
 }
 
 function dishIngredientRow(ingredient) {
-  const options = addMealItems().map((item) => option(item.id, item.kind === "dish" ? `🍽 ${item.name}` : item.name, ingredient.productId)).join("");
+  const options = addMealItems().map((item) => option(item.id, item.name, ingredient.productId)).join("");
   return `<div class="dish-ingredient-row" data-dish-ingredient="${ingredient.id}">
     <select name="ingredientProduct">${options}</select>
     <input name="ingredientAmount" type="number" min="1" step="0.1" inputmode="decimal" value="${ingredient.amount || ""}" placeholder="г">
-    <button class="icon-btn compact" type="button" data-remove-dish-ingredient="${ingredient.id}" title="Удалить">${icons.trash}</button>
+    <button class="icon-btn compact delete-btn" type="button" data-remove-dish-ingredient="${ingredient.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
 
@@ -3245,12 +3900,13 @@ function deleteConfirmModal() {
   const isDish = deleteConfirm.kind === "dish";
   const isWeight = deleteConfirm.kind === "weight";
   const isEighty = deleteConfirm.kind === "eighty";
+  const isTemplate = deleteConfirm.kind === "template";
   return `<div class="modal-backdrop" data-modal-close="delete-confirm">
     <div class="modal-card confirm-modal" role="dialog" aria-modal="true" aria-label="Подтверждение удаления">
       <div class="modal-head">
         <div>
-          <span>${isWeight ? "⚖ Вес" : isDish ? "🍽 Блюдо" : isEighty ? "📚 База Eighty" : "📦 Продукт"}</span>
-          <h3>${isWeight ? "Удалить запись веса?" : isDish ? "Удалить блюдо?" : isEighty ? "Удалить продукт из вашей базы?" : "Удалить продукт?"}</h3>
+          <span>${isTemplate ? "⭐ Шаблон" : isWeight ? "⚖ Вес" : isDish ? "Блюдо" : isEighty ? "📚 База Eighty" : "Продукт"}</span>
+          <h3>${isTemplate ? "Удалить шаблон?" : isWeight ? "Удалить запись веса?" : isDish ? "Удалить блюдо?" : isEighty ? "Удалить продукт из вашей базы?" : "Удалить продукт?"}</h3>
         </div>
       </div>
       <div class="modal-actions">
@@ -3298,6 +3954,7 @@ function accountDeletingOverlay() {
 
 function screenProfile(targets) {
   const telegramId = state.telegram.telegramId || currentUser.telegramId || "—";
+  if (weightHistoryOpen) return screenWeightHistory();
   return `<section class="screen ${activeScreen === "profile" ? "active" : ""}">
     <div class="stack">
       <header class="screen-header profile-title">
@@ -3317,7 +3974,7 @@ function screenProfile(targets) {
       ${profileWaterPanel()}
       ${accountDeletePanel()}
       <div class="profile-app-info">
-        <span>Eighty v2.2.0</span>
+        <span>Eighty v2.3.0</span>
         <span>© 2026 by Егор Галкин</span>
       </div>
     </div>
@@ -3355,7 +4012,7 @@ function profileCard(targets) {
 
 function accountDeletePanel() {
   return `<div class="account-delete-panel">
-    <button class="account-delete-btn" type="button" data-action="open-account-delete">🗑 Удалить аккаунт</button>
+    <button class="account-delete-btn" type="button" data-action="open-account-delete">Удалить аккаунт</button>
   </div>`;
 }
 
@@ -3363,32 +4020,47 @@ function weightRows() {
   return sortedWeightLogs();
 }
 
-function weightHistoryModal() {
+function screenWeightHistory() {
   const rows = weightRows();
-  return `<div class="modal-backdrop" data-modal-close="weight-history">
-    <div class="modal-card weight-history-modal" role="dialog" aria-modal="true" aria-label="История веса">
-      <div class="modal-head weight-history-head">
-        <div>
-          <span>${rows.length} записей</span>
-          <h3>История веса</h3>
+  return `<section class="screen ${activeScreen === "profile" ? "active" : ""}">
+    <div class="stack">
+      <header class="screen-header profile-title weight-page-title">
+        <button class="back-link" type="button" data-action="close-weight-history">← Назад</button>
+        <span>ВАША ИСТОРИЯ И ПРОГРЕСС</span>
+        <div class="add-title-row">
+          <h1>История веса</h1>
+          <button class="add-create-btn" type="button" data-action="open-weight-add">+ Добавить</button>
         </div>
-        <button class="secondary-btn weight-add-open" type="button" data-action="open-weight-add">+ Добавить вес</button>
-        <button class="icon-btn compact neutral" type="button" data-action="close-weight-history">×</button>
-      </div>
+      </header>
+      ${weightSummaryGrid()}
       ${weightEditor ? weightEntryForm() : ""}
       <div class="weight-history-list">
-        ${rows.length ? rows.map(weightHistoryRow).join("") : `<div class="empty-line">История веса пока пустая</div>`}
+        ${rows.length ? rows.map(weightHistoryRow).join("") : `<div class="empty-line">История веса пока пуста. Добавьте первую запись, чтобы отслеживать прогресс.</div>`}
       </div>
     </div>
+  </section>`;
+}
+
+function weightSummaryGrid() {
+  const start = startWeight();
+  const current = currentWeight();
+  const target = number(state.profile.targetWeight);
+  const change = start > 0 && current > 0 ? current - start : 0;
+  const remaining = current > 0 && target > 0 ? Math.abs(current - target) : 0;
+  return `<div class="summary-grid weight-summary-grid">
+    ${statCard("Начальный вес", start > 0 ? `${round(start, 1)} кг` : "—")}
+    ${statCard("Текущий вес", current > 0 ? `${round(current, 1)} кг` : "—")}
+    ${statCard("Изменение", start > 0 && current > 0 ? `${change > 0 ? "+" : ""}${round(change, 1)} кг` : "—")}
+    ${statCard("До цели осталось", targetReached() ? "0 кг" : remaining > 0 ? `${round(remaining, 1)} кг` : "—")}
   </div>`;
 }
 
 function weightEntryForm() {
   const isEdit = weightEditor?.mode === "edit";
-  return `<form class="form-grid weight-entry-form" data-form="weight-entry">
+  return `<form class="form-grid weight-entry-form panel" data-form="weight-entry">
     <input type="hidden" name="id" value="${escapeHtml(weightEditor?.id || "")}">
     <div class="field"><label>Дата</label><input name="date" type="date" value="${escapeHtml(weightEditor?.date || todayIso())}" required></div>
-    <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${escapeHtml(weightEditor?.weight || "")}" placeholder="98" required></div>
+    <div class="field"><label>Вес, кг</label><input name="weight" type="number" inputmode="decimal" step="0.1" value="${escapeHtml(weightEditor?.weight || "")}" placeholder="0" required></div>
     <div class="modal-actions field full">
       <button class="secondary-btn" type="button" data-action="close-weight-editor">Отмена</button>
       <button class="primary-btn" type="submit">${isEdit ? "Сохранить" : "Сохранить"}</button>
@@ -3400,12 +4072,12 @@ function weightHistoryRow(item) {
   const first = sortedWeightLogs()[0];
   const isInitial = first?.id === item.id;
   return `<article class="weight-history-card">
-    <button class="weight-history-main" type="button" data-edit-weight="${item.id}">
+    <div class="weight-history-main">
       <span>${formatDate(item.date)}</span>
       ${isInitial ? `<em>Начальный вес</em>` : ""}
       <strong>${round(item.weight, 1)} кг</strong>
-    </button>
-    <button class="icon-btn compact" type="button" data-confirm-delete-weight="${item.id}" title="Удалить">${icons.trash}</button>
+    </div>
+    <button class="icon-btn compact delete-btn" type="button" data-delete-weight="${item.id}" title="Удалить">${icons.trash}</button>
   </article>`;
 }
 
@@ -3497,10 +4169,10 @@ function manualTargetsFields(p) {
     <div class="field"><label>Активность</label><select name="activity">${option("", "Не выбрана", p.activity)}${Object.entries(labels.activities).map(([id, label]) => option(id, label, p.activity)).join("")}</select></div>
     <input type="hidden" name="deficitPercent" value="${p.deficitPercent}">
     <input type="hidden" name="surplusPercent" value="${p.surplusPercent}">
-    <div class="field"><label>Калории</label><input name="manualCalories" type="number" inputmode="numeric" value="${p.manualTargets.calories || ""}" placeholder="1500"></div>
-    <div class="field"><label>Белки</label><input name="manualProtein" type="number" inputmode="decimal" step="0.1" value="${p.manualTargets.protein || ""}" placeholder="100"></div>
-    <div class="field"><label>Жиры</label><input name="manualFat" type="number" inputmode="decimal" step="0.1" value="${p.manualTargets.fat || ""}" placeholder="45"></div>
-    <div class="field"><label>Углеводы</label><input name="manualCarbs" type="number" inputmode="decimal" step="0.1" value="${p.manualTargets.carbs || ""}" placeholder="140"></div>
+    <div class="field"><label>Калории</label><input name="manualCalories" type="number" inputmode="numeric" value="${p.manualTargets.calories || ""}" placeholder="0"></div>
+    <div class="field"><label>Белки</label><input name="manualProtein" type="number" inputmode="decimal" step="0.1" value="${p.manualTargets.protein || ""}" placeholder="0"></div>
+    <div class="field"><label>Жиры</label><input name="manualFat" type="number" inputmode="decimal" step="0.1" value="${p.manualTargets.fat || ""}" placeholder="0"></div>
+    <div class="field"><label>Углеводы</label><input name="manualCarbs" type="number" inputmode="decimal" step="0.1" value="${p.manualTargets.carbs || ""}" placeholder="0"></div>
   </div>`;
 }
 
@@ -3605,10 +4277,10 @@ function profileDetailsModal() {
       </div>
       <form class="form-grid profile-fields" data-form="profile">
         <div class="field full"><label>Имя</label><input name="name" value="${escapeHtml(p.name || currentUser.name || "")}" placeholder="Ваше имя" enterkeyhint="next"></div>
-        <div class="field"><label>Возраст</label><input name="age" type="number" inputmode="numeric" value="${p.age || ""}" placeholder="28" enterkeyhint="next"></div>
+        <div class="field"><label>Возраст</label><input name="age" type="number" inputmode="numeric" value="${p.age || ""}" placeholder="0" enterkeyhint="next"></div>
         <div class="field"><label>Пол</label><select name="sex">${option("", "Не выбран", p.sex)}${option("female", "Женский", p.sex)}${option("male", "Мужской", p.sex)}${option("other", "Другой", p.sex)}</select></div>
-        <div class="field"><label>Рост, см</label><input name="height" type="number" inputmode="numeric" value="${p.height || ""}" placeholder="170" enterkeyhint="next"></div>
-        <div class="field"><label>Цель, кг</label><input name="targetWeight" type="number" inputmode="decimal" step="0.1" value="${p.targetWeight || ""}" placeholder="80" enterkeyhint="next"></div>
+        <div class="field"><label>Рост, см</label><input name="height" type="number" inputmode="numeric" value="${p.height || ""}" placeholder="0" enterkeyhint="next"></div>
+        <div class="field"><label>Цель, кг</label><input name="targetWeight" type="number" inputmode="decimal" step="0.1" value="${p.targetWeight || ""}" placeholder="0" enterkeyhint="next"></div>
         <input type="hidden" name="goalMode" value="${p.goalMode || "loss"}">
         <input type="hidden" name="activity" value="${p.activity || ""}">
         <input type="hidden" name="targetMode" value="${p.targetMode || "auto"}">
@@ -3629,7 +4301,7 @@ function profileWaterPanel() {
   return `<div class="panel" data-profile-water>
     <div class="section-title"><h2>Вода</h2><span data-water-goal-label>${round(waterGoal() / 1000, 1)} л в день</span></div>
     <label class="check-row"><input name="waterAuto" type="checkbox" ${auto ? "checked" : ""}><span>Автоматический расчёт</span></label>
-    <div class="field"><label>Своя цель воды, мл</label><input name="waterGoal" type="number" inputmode="numeric" value="${state.settings.waterGoal || ""}" placeholder="2200" enterkeyhint="done" ${auto ? "disabled" : ""}></div>
+    <div class="field"><label>Своя цель воды, мл</label><input name="waterGoal" type="number" inputmode="numeric" value="${state.settings.waterGoal || ""}" placeholder="0" enterkeyhint="done" ${auto ? "disabled" : ""}></div>
     <div class="water-help">
       <span data-water-mode>${auto ? "Автоматический расчёт" : "Ручной режим"}</span>
       <p data-water-formula>${waterFormulaText()}</p>
@@ -3647,11 +4319,18 @@ function option(value, label, selected) {
 }
 
 function toast(message) {
+  document.querySelectorAll(".toast").forEach((item) => item.remove());
+  const text = String(message || "").replace(/^[✅✓]\s*/u, "").trim();
   const node = document.createElement("div");
   node.className = "toast";
-  node.textContent = message;
+  node.setAttribute("role", "status");
+  node.setAttribute("aria-live", "polite");
+  node.innerHTML = `<span aria-hidden="true">✓</span><strong>${escapeHtml(text)}</strong>`;
   document.body.append(node);
-  setTimeout(() => node.remove(), 1800);
+  window.setTimeout(() => {
+    node.classList.add("leaving");
+    window.setTimeout(() => node.remove(), 220);
+  }, 2000);
 }
 
 app.addEventListener("submit", (event) => {
@@ -3663,8 +4342,10 @@ app.addEventListener("submit", (event) => {
   if (type === "product") addProduct(form);
   if (type === "water") addWaterManual(form);
   if (type === "water-history") saveWaterHistory(form);
+  if (type === "period-custom") saveAnalyticsCustomRange(form);
   if (type === "profile") saveProfile(form);
   if (type === "weight-entry") saveWeightEntry(form);
+  if (type === "meal-template") saveMealTemplate(form);
   if (type === "product-edit") saveProductEdit(form);
   if (type === "eighty-edit") saveEightyEdit(form);
   if (type === "dish-edit") saveDishEdit(form);
@@ -3680,9 +4361,18 @@ app.addEventListener("click", (event) => {
     render();
     return;
   }
+  if (addCreateMenuOpen && !event.target.closest("[data-create-menu-root]")) {
+    addCreateMenuOpen = false;
+    render();
+    return;
+  }
   const button = event.target.closest("button");
   if (!button) return;
   if (accountDeleteBusy) return;
+  if (button.dataset.amountStep) {
+    stepCartAmount(button.dataset.amountStep, number(button.dataset.step));
+    return;
+  }
   if (button.dataset.keyboardDone) {
     blurActive();
     setKeyboardMode(false);
@@ -3730,8 +4420,41 @@ app.addEventListener("click", (event) => {
     favoritesPage = "eighty-category";
     render();
   }
+  if (button.dataset.action === "toggle-add-create-menu") {
+    addCreateMenuOpen = !addCreateMenuOpen;
+    render();
+    return;
+  }
   if (button.dataset.addPage) {
+    addCreateMenuOpen = false;
     setAddPage(button.dataset.addPage);
+    return;
+  }
+  if (button.dataset.action === "toggle-templates") {
+    mealTemplatesVisible = !mealTemplatesVisible;
+    render();
+    return;
+  }
+  if (button.dataset.templateDateStep) {
+    templateSourceDate = clampTemplateDate(addDays(templateSourceDate, number(button.dataset.templateDateStep)));
+    render();
+    return;
+  }
+  if (button.dataset.createTemplateMeal) {
+    openTemplateCreator(button.dataset.createTemplateMeal);
+    return;
+  }
+  if (button.dataset.useTemplate) {
+    useMealTemplate(button.dataset.useTemplate);
+    return;
+  }
+  if (button.dataset.editTemplate) {
+    openTemplateRename(button.dataset.editTemplate);
+    return;
+  }
+  if (button.dataset.action === "close-meal-template") {
+    mealTemplateEditor = null;
+    render();
     return;
   }
   if (button.dataset.action === "prev-date") changeDate(-1);
@@ -3755,6 +4478,44 @@ app.addEventListener("click", (event) => {
   if (button.dataset.action === "water-history") {
     waterHistoryOpen = true;
     render();
+  }
+  if (button.dataset.action === "open-period-analytics") {
+    analyticsView = "periods";
+    periodSheetOpen = false;
+    render();
+    return;
+  }
+  if (button.dataset.action === "analytics-back") {
+    analyticsView = "daily";
+    periodSheetOpen = false;
+    render();
+    return;
+  }
+  if (button.dataset.action === "open-period-sheet") {
+    const range = analyticsPeriodRange();
+    analyticsCustomDraft = { start: analyticsPeriod.start || range.start, end: analyticsPeriod.end || range.end };
+    periodSheetOpen = true;
+    render();
+    return;
+  }
+  if (button.dataset.action === "close-period-sheet") {
+    periodSheetOpen = false;
+    render();
+    return;
+  }
+  if (button.dataset.periodType) {
+    if (button.dataset.periodType === "custom") {
+      const range = analyticsPeriodRange();
+      analyticsPeriod = { type: "custom", start: analyticsPeriod.start || range.start, end: analyticsPeriod.end || range.end };
+      analyticsCustomDraft = { start: analyticsPeriod.start, end: analyticsPeriod.end };
+      periodSheetOpen = true;
+    } else {
+      analyticsPeriod = { type: button.dataset.periodType, start: "", end: "" };
+      analyticsCustomDraft = { start: "", end: "" };
+      periodSheetOpen = false;
+    }
+    render();
+    return;
   }
   if (button.dataset.action === "profile-details") {
     profileDetailsOpen = true;
@@ -3817,6 +4578,7 @@ app.addEventListener("click", (event) => {
   if (button.dataset.water) addWater(number(button.dataset.water));
   if (button.dataset.deleteEntry) deleteEntry(button.dataset.deleteEntry);
   if (button.dataset.deleteProduct) deleteProduct(button.dataset.deleteProduct);
+  if (button.dataset.deleteWeight) deleteWeight(button.dataset.deleteWeight);
   if (button.dataset.confirmDeleteProduct) {
     deleteConfirm = { kind: "product", id: button.dataset.confirmDeleteProduct };
     render();
@@ -3828,18 +4590,13 @@ app.addEventListener("click", (event) => {
   if (button.dataset.editProduct) openProductEditor(button.dataset.editProduct);
   if (button.dataset.editDish) openDishEditor(button.dataset.editDish);
   if (button.dataset.editEightyProduct) openEightyEditor(button.dataset.editEightyProduct);
-  if (button.dataset.editWeight) openWeightEditor(button.dataset.editWeight);
   if (button.dataset.deleteWater) deleteWaterEntry(button.dataset.deleteWater);
-  if (button.dataset.confirmDeleteWeight) {
-    deleteConfirm = { kind: "weight", id: button.dataset.confirmDeleteWeight };
-    render();
-  }
   if (button.dataset.confirmDeleteEighty) {
     deleteConfirm = { kind: "eighty", id: button.dataset.confirmDeleteEighty };
     render();
   }
-  if (button.dataset.range) {
-    analyticsRange = button.dataset.range;
+  if (button.dataset.confirmDeleteTemplate) {
+    deleteConfirm = { kind: "template", id: button.dataset.confirmDeleteTemplate };
     render();
   }
   if (button.dataset.analyticsStep) {
@@ -3992,7 +4749,21 @@ app.addEventListener("click", (event) => {
   if (button.dataset.toggleProduct) toggleProduct(button.dataset.toggleProduct);
   if (button.dataset.addMeal) {
     entryDraft.meal = button.dataset.addMeal;
-    render();
+    const form = button.closest('form[data-form="entry"]');
+    const picker = button.closest(".amount-meal-picker");
+    if (!form || !picker) {
+      render();
+      return;
+    }
+    const buttons = [...picker.querySelectorAll("[data-add-meal]")];
+    const activeIndex = Math.max(0, buttons.findIndex((item) => item.dataset.addMeal === entryDraft.meal));
+    picker.dataset.activeIndex = String(activeIndex);
+    buttons.forEach((item) => item.classList.toggle("active", item === button));
+    const mealInput = form.querySelector('input[name="meal"]');
+    if (mealInput) mealInput.value = entryDraft.meal;
+    const submit = form.querySelector(".add-meal-submit");
+    if (submit) submit.textContent = mealButtonLabel(entryDraft.meal);
+    return;
   }
   if (button.dataset.favoritesSort) {
     favoritesSort = button.dataset.favoritesSort;
@@ -4007,6 +4778,9 @@ app.addEventListener("change", (event) => {
 
   const productForm = target.closest('form[data-form="product"]');
   if (productForm && target.name === "type") productForm.classList.toggle("cooked-mode", target.value === "cooked");
+
+  const productEditForm = target.closest('form[data-form="product-edit"]');
+  if (productEditForm && target.name === "type") productEditForm.classList.toggle("cooked-mode", target.value === "cooked");
 
   const profileForm = target.closest('form[data-form="profile"]');
   if (profileForm && ["goalMode", "targetMode"].includes(target.name)) {
@@ -4146,7 +4920,7 @@ app.addEventListener("input", (event) => {
     const cart = app.querySelector(".meal-cart");
     if (cart && mealCartOpen) cart.outerHTML = mealCartPanel();
     const submit = app.querySelector(".add-meal-submit");
-    if (submit) submit.disabled = selectedMealItems().length === 0;
+    if (submit) submit.disabled = selectedMealItems().length === 0 || selectedMealItems().some(({ amount }) => number(amount, 0) <= 0);
     return;
   }
 
