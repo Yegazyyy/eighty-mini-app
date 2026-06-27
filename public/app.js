@@ -202,6 +202,7 @@ let ingredientPicker = { source: "mine", query: "", categoryId: "", items: {} };
 let waterHistoryOpen = false;
 let profileDetailsOpen = false;
 let nutritionInfoOpen = false;
+let remindersOpen = false;
 let weightHistoryOpen = false;
 let weightEditor = null;
 let accountDeleteOpen = false;
@@ -210,6 +211,7 @@ let achievementsOpen = false;
 let earnedAchievementsOpen = false;
 let keyboardBaseHeight = window.visualViewport?.height || window.innerHeight;
 let keyboardTimer = null;
+let keyboardScrollTimer = null;
 
 const formControlSelector = 'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), textarea, select';
 
@@ -241,6 +243,45 @@ function updateKeyboardMode() {
 
   setKeyboardMode(focused && (keyboardVisible || Boolean(tg) || window.innerWidth <= 820), keyboardOffset);
   activateTabIndicatorMotion();
+  if (focused) scheduleFocusedControlScroll(document.activeElement, 80);
+}
+
+function focusScrollTarget(control) {
+  return control.closest(".field, .reminder-setting-row, .product-choice-amount, .amount-card, .dish-ingredient-row, .water-history-row") || control;
+}
+
+function scrollFocusedControlIntoView(control) {
+  if (!isFormControl(control)) return;
+
+  const modal = control.closest(".modal-card");
+  const target = focusScrollTarget(control);
+  if (!modal) {
+    target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+    return;
+  }
+
+  const modalRect = modal.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const head = modal.querySelector(".modal-head");
+  const actions = modal.querySelector(".modal-actions");
+  const headHeight = head?.getBoundingClientRect().height || 0;
+  const actionsHeight = actions?.getBoundingClientRect().height || 0;
+  const topLimit = modalRect.top + headHeight + 12;
+  const bottomLimit = modalRect.bottom - actionsHeight - 16;
+  let delta = 0;
+
+  if (targetRect.top < topLimit) delta = targetRect.top - topLimit;
+  else if (targetRect.bottom > bottomLimit) delta = targetRect.bottom - bottomLimit;
+
+  if (delta) modal.scrollBy({ top: delta, behavior: "smooth" });
+}
+
+function scheduleFocusedControlScroll(control = document.activeElement, delay = 120) {
+  if (!isFormControl(control)) return;
+  clearTimeout(keyboardScrollTimer);
+  keyboardScrollTimer = setTimeout(() => {
+    scrollFocusedControlIntoView(control);
+  }, delay);
 }
 
 function setupKeyboardBehavior() {
@@ -252,10 +293,10 @@ function setupKeyboardBehavior() {
   document.addEventListener("focusin", (event) => {
     if (!isFormControl(event.target)) return;
     setKeyboardMode(true, Math.max(0, keyboardBaseHeight - (viewport?.height || window.innerHeight)));
-    clearTimeout(keyboardTimer);
-    keyboardTimer = setTimeout(() => {
+    clearTimeout(keyboardScrollTimer);
+    keyboardScrollTimer = setTimeout(() => {
       updateKeyboardMode();
-      event.target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+      scrollFocusedControlIntoView(event.target);
     }, 120);
   });
 
@@ -323,6 +364,30 @@ function mergeState(serverState, localState) {
   };
 }
 
+function defaultReminderSettings() {
+  return {
+    enabled: false,
+    diary: { enabled: true, time: "20:00" },
+    water: { enabled: true, intervalHours: 2, start: "09:00", end: "21:00" },
+    weight: { enabled: true, weekday: "monday", time: "08:00" },
+    streak: { enabled: false, time: "21:00" },
+    goal: { enabled: true, time: "20:30" }
+  };
+}
+
+function reminderSettings(value = {}) {
+  const defaults = defaultReminderSettings();
+  return {
+    ...defaults,
+    ...value,
+    diary: { ...defaults.diary, ...(value.diary || {}) },
+    water: { ...defaults.water, ...(value.water || {}) },
+    weight: { ...defaults.weight, ...(value.weight || {}) },
+    streak: { ...defaults.streak, ...(value.streak || {}) },
+    goal: { ...defaults.goal, ...(value.goal || {}) }
+  };
+}
+
 function ensureShape() {
   state ||= {};
   state.version = 5;
@@ -366,6 +431,9 @@ function ensureShape() {
     targetsPanelOpen: false,
     ...(state.settings || {})
   };
+  state.settings.reminders = reminderSettings({
+    ...(state.settings.reminders || {})
+  });
   state.products ||= [];
   state.mealTemplates ||= [];
   state.eightyOverrides ||= {};
@@ -1252,6 +1320,7 @@ function closeModal(name) {
   if (!name || name === "water") waterHistoryOpen = false;
   if (!name || name === "profile-details") profileDetailsOpen = false;
   if (!name || name === "nutrition-info") nutritionInfoOpen = false;
+  if (!name || name === "reminders") remindersOpen = false;
   if (!name || name === "eighty-food") eightyFoodDialog = null;
   if (!name || name === "meal-template") mealTemplateEditor = null;
   if (!name || name === "library-editor") libraryEditor = null;
@@ -2210,6 +2279,22 @@ function updateProfileWaterFromForm(form) {
   syncProfileWaterFromForm(form);
   refreshProfileWaterView();
   persist();
+}
+
+function setReminderPath(path, value) {
+  const [group, key] = String(path).split(".");
+  const reminders = state.settings.reminders;
+  if (!group || !key || !reminders[group]) return;
+  reminders[group][key] = key === "intervalHours" ? number(value, reminders[group][key]) : value;
+  persist();
+}
+
+function toggleReminderSetting(name) {
+  const reminders = state.settings.reminders;
+  if (name === "enabled") reminders.enabled = !reminders.enabled;
+  else if (reminders[name]) reminders[name].enabled = !reminders[name].enabled;
+  persist();
+  render();
 }
 
 function saveProfile(form) {
@@ -3500,10 +3585,26 @@ function addRationPage(showHeader = true) {
 }
 
 function addFoodSearchRow() {
-  return `<div class="dish-search-row add-food-search-row">
-    <input class="search-input" data-add-food-query value="${escapeHtml(addFoodQuery)}" placeholder="Поиск продуктов и блюд">
-    <button class="icon-btn library-open-btn barcode-open-btn" type="button" data-action="open-barcode-scanner" title="Сканировать штрихкод" aria-label="Сканировать штрихкод">▦</button>
-    <button class="icon-btn library-open-btn" type="button" data-add-page="eighty" title="База Eighty" aria-label="База Eighty">📚</button>
+  return productSearchToolsRow({
+    inputAttrs: `data-add-food-query value="${escapeHtml(addFoodQuery)}"`,
+    placeholder: "Поиск продуктов и блюд",
+    libraryAttrs: `data-add-page="eighty"`
+  });
+}
+
+function favoritesSearchRow() {
+  return productSearchToolsRow({
+    inputAttrs: `data-favorites-query value="${escapeHtml(favoritesQuery)}"`,
+    placeholder: "Поиск",
+    libraryAttrs: `data-favorites-page="eighty"`
+  });
+}
+
+function productSearchToolsRow({ inputAttrs, placeholder, libraryAttrs }) {
+  return `<div class="dish-search-row product-search-tools">
+    <input class="search-input" ${inputAttrs} placeholder="${escapeHtml(placeholder)}">
+    <button class="icon-btn library-open-btn barcode-open-btn" type="button" data-action="open-barcode-scanner" title="Сканировать штрихкод" aria-label="Сканировать штрихкод">📷</button>
+    <button class="icon-btn library-open-btn" type="button" ${libraryAttrs} title="База Eighty" aria-label="База Eighty">📚</button>
   </div>`;
 }
 
@@ -4131,7 +4232,7 @@ function screenFavorites() {
         <h1>Продукты</h1>
       </header>
       <div class="favorites-tools">
-        <div class="dish-search-row"><input class="search-input" data-favorites-query value="${escapeHtml(favoritesQuery)}" placeholder="Поиск"><button class="icon-btn library-open-btn" type="button" data-favorites-page="eighty" title="База Eighty">📚</button></div>
+        ${favoritesSearchRow()}
         <div class="segmented sort-segments">
           <button class="${favoritesSort === "az" ? "active" : ""}" type="button" data-favorites-sort="az">А-Я</button>
           <button class="${favoritesSort === "za" ? "active" : ""}" type="button" data-favorites-sort="za">Я-А</button>
@@ -4444,6 +4545,7 @@ function accountDeletingOverlay() {
 function screenProfile(targets) {
   const telegramId = state.telegram.telegramId || currentUser.telegramId || "—";
   if (weightHistoryOpen) return screenWeightHistory();
+  if (remindersOpen) return screenReminders();
   return `<section class="${screenStateClass("profile")}">
     <div class="stack">
       <header class="screen-header profile-title">
@@ -4457,7 +4559,8 @@ function screenProfile(targets) {
       <div class="profile-actions panel">
         <button class="secondary-btn" type="button" data-action="profile-details">Основные данные</button>
         <button class="secondary-btn" type="button" data-action="achievements">Достижения</button>
-        <button class="secondary-btn profile-action-wide" type="button" data-action="weight-history">История веса</button>
+        <button class="secondary-btn" type="button" data-action="reminders">🔔 Напоминания</button>
+        <button class="secondary-btn" type="button" data-action="weight-history">📈 История веса</button>
       </div>
       ${targetsPanel(targets)}
       ${profileWaterPanel()}
@@ -4525,6 +4628,120 @@ function screenWeightHistory() {
       ${weightEditor ? weightEntryForm() : ""}
       <div class="weight-history-list">
         ${rows.length ? rows.map(weightHistoryRow).join("") : `<div class="empty-line">История веса пока пуста. Добавьте первую запись, чтобы отслеживать прогресс.</div>`}
+      </div>
+    </div>
+  </section>`;
+}
+
+function reminderLabel(enabled) {
+  return enabled ? "Включено" : "Выключено";
+}
+
+function reminderSwitch(name, enabled, disabled = false) {
+  return `<button class="ios-switch ${enabled ? "active" : ""}" type="button" data-reminder-toggle="${name}" aria-pressed="${enabled}" ${disabled ? "disabled" : ""}><i></i></button>`;
+}
+
+function reminderTimeField(label, name, value, disabled) {
+  return `<label class="reminder-setting-row">
+    <span>${label}</span>
+    <input type="time" data-reminder-field="${name}" value="${escapeHtml(value || "")}" ${disabled ? "disabled" : ""}>
+  </label>`;
+}
+
+function reminderSelectField(label, name, value, options, disabled) {
+  return `<label class="reminder-setting-row">
+    <span>${label}</span>
+    <select data-reminder-field="${name}" ${disabled ? "disabled" : ""}>
+      ${options.map(([id, title]) => option(id, title, value)).join("")}
+    </select>
+  </label>`;
+}
+
+function reminderCard(id, icon, title, body, condition) {
+  const reminders = state.settings.reminders;
+  const item = reminders[id];
+  const disabled = !reminders.enabled;
+  return `<article class="reminder-card ${disabled ? "muted" : ""}">
+    <div class="reminder-card-head">
+      <div>
+        <h3>${icon} ${title}</h3>
+        <span>${reminderLabel(item.enabled)}</span>
+      </div>
+      ${reminderSwitch(id, item.enabled, disabled)}
+    </div>
+    <div class="reminder-card-body">${body}</div>
+    <p>${condition}</p>
+  </article>`;
+}
+
+function screenReminders() {
+  const reminders = state.settings.reminders;
+  const disabled = !reminders.enabled;
+  const intervals = [[1, "каждый час"], [2, "каждые 2 часа"], [3, "каждые 3 часа"], [4, "каждые 4 часа"]].map(([id, title]) => [String(id), title]);
+  const weekdays = [
+    ["monday", "Понедельник"],
+    ["tuesday", "Вторник"],
+    ["wednesday", "Среда"],
+    ["thursday", "Четверг"],
+    ["friday", "Пятница"],
+    ["saturday", "Суббота"],
+    ["sunday", "Воскресенье"]
+  ];
+  return `<section class="${screenStateClass("profile")}">
+    <div class="stack">
+      <header class="screen-header profile-title weight-page-title">
+        <button class="back-link" type="button" data-action="close-reminders">← Назад</button>
+        <span>ПЕРСОНАЛЬНЫЕ НАСТРОЙКИ</span>
+        <h1>Напоминания</h1>
+      </header>
+      <section class="panel reminders-master">
+        <div class="reminder-card-head">
+          <div>
+            <h2>🔔 Напоминания</h2>
+            <span>${reminders.enabled ? "Активны" : "Отключены"}</span>
+          </div>
+          ${reminderSwitch("enabled", reminders.enabled)}
+        </div>
+      </section>
+      <div class="reminders-list">
+        ${reminderCard(
+          "diary",
+          "🍽",
+          "Заполнить дневник",
+          reminderTimeField("Время", "diary.time", reminders.diary.time, disabled),
+          "Отправляется только если за текущий день ещё нет записей в дневнике."
+        )}
+        ${reminderCard(
+          "water",
+          "💧",
+          "Вода",
+          `${reminderSelectField("Интервал", "water.intervalHours", String(reminders.water.intervalHours), intervals, disabled)}
+           ${reminderTimeField("Начало", "water.start", reminders.water.start, disabled)}
+           ${reminderTimeField("Конец", "water.end", reminders.water.end, disabled)}`,
+          "Останавливается на день, когда дневная норма воды уже выполнена."
+        )}
+        ${reminderCard(
+          "weight",
+          "⚖️",
+          "Взвешивание",
+          `${reminderSelectField("День недели", "weight.weekday", reminders.weight.weekday, weekdays, disabled)}
+           ${reminderTimeField("Время", "weight.time", reminders.weight.time, disabled)}`,
+          "Помогает регулярно обновлять историю веса."
+        )}
+        ${reminderCard(
+          "streak",
+          "🔥",
+          "Серия",
+          reminderTimeField("Время", "streak.time", reminders.streak.time, disabled),
+          "Отправляется только если серия уже есть, а за сегодня ещё нет записей."
+        )}
+        ${reminderCard(
+          "goal",
+          "🎯",
+          "Цель дня",
+          reminderTimeField("Время", "goal.time", reminders.goal.time, disabled),
+          "Отправляется только если к выбранному времени дневная цель по питанию ещё не выполнена."
+        )}
       </div>
     </div>
   </section>`;
@@ -5111,6 +5328,18 @@ app.addEventListener("click", async (event) => {
     weightHistoryOpen = true;
     render();
   }
+  if (button.dataset.action === "reminders") {
+    remindersOpen = true;
+    render();
+  }
+  if (button.dataset.action === "close-reminders") {
+    remindersOpen = false;
+    render();
+  }
+  if (button.dataset.reminderToggle) {
+    toggleReminderSetting(button.dataset.reminderToggle);
+    return;
+  }
   if (button.dataset.action === "achievements") {
     achievementsOpen = true;
     render();
@@ -5354,6 +5583,10 @@ app.addEventListener("click", async (event) => {
 
 app.addEventListener("change", (event) => {
   const target = event.target;
+  if (target.dataset.reminderField) {
+    setReminderPath(target.dataset.reminderField, target.value);
+    return;
+  }
   const entryForm = target.closest('form[data-form="entry"]');
   if (entryForm && target.dataset.cartAmount) return;
 

@@ -28,7 +28,33 @@
           "waterEnabled": true,
           "waterManual": false,
           "waterGoal": 2950,
-          "targetsPanelOpen": false
+          "targetsPanelOpen": false,
+          "reminders": {
+            "enabled": true,
+            "diary": {
+              "enabled": false,
+              "time": "20:00"
+            },
+            "water": {
+              "enabled": false,
+              "intervalHours": 2,
+              "start": "09:00",
+              "end": "21:00"
+            },
+            "weight": {
+              "enabled": false,
+              "weekday": "monday",
+              "time": "08:00"
+            },
+            "streak": {
+              "enabled": false,
+              "time": "21:00"
+            },
+            "goal": {
+              "enabled": false,
+              "time": "20:30"
+            }
+          }
         },
         "products": [
           {
@@ -268,7 +294,8 @@
                 "carbs": 0.75
               }
             }
-          ]
+          ],
+          "2026-06-28": []
         },
         "water": {
           "2026-06-22": 0,
@@ -276,7 +303,8 @@
           "2026-06-24": 0,
           "2026-06-25": 0,
           "2026-06-27": 500,
-          "2026-06-26": 0
+          "2026-06-26": 0,
+          "2026-06-28": 0
         },
         "weightLogs": [
           {
@@ -306,10 +334,11 @@
               "createdAt": "2026-06-26T21:57:19.000Z"
             }
           ],
-          "2026-06-26": []
+          "2026-06-26": [],
+          "2026-06-28": []
         },
         "stats": {
-          "currentStreak": 2,
+          "currentStreak": 0,
           "maxStreak": 2
         },
         "achievements": {
@@ -324,7 +353,7 @@
         "accountResetAt": "2026-06-25T03:46:36.159Z",
         "mealTemplates": []
       },
-      "updatedAt": "2026-06-27T17:01:30.488Z"
+      "updatedAt": "2026-06-27T20:17:28.906Z"
     },
     "codex-onboarding-test": {
       "telegramId": "codex-onboarding-test",

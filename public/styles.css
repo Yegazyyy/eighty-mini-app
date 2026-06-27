@@ -1169,27 +1169,37 @@ button:disabled {
   display: grid;
   align-items: end;
   padding: 14px;
+  overflow: hidden;
   background: rgba(5, 5, 5, 0.28);
   backdrop-filter: blur(10px);
+  transition: height 0.22s var(--ease-out), padding 0.22s var(--ease-out);
 }
 
 .modal-card {
   width: min(100%, 680px);
-  max-height: min(82vh, 720px);
+  max-height: min(calc(100dvh - 28px), 720px);
   margin: 0 auto;
   overflow: auto;
   padding: 18px;
   border-radius: 30px;
   background: var(--panel);
   box-shadow: 0 28px 72px rgba(5, 5, 5, 0.2);
+  overscroll-behavior: contain;
+  scroll-padding: 88px 0 84px;
+  transition: max-height 0.22s var(--ease-out), transform 0.22s var(--ease-out);
 }
 
 .modal-head {
+  position: sticky;
+  top: -18px;
+  z-index: 3;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
-  margin-bottom: 16px;
+  margin: -18px 0 16px;
+  padding: 18px 0 14px;
+  background: var(--panel);
 }
 
 .modal-head span {
@@ -1838,13 +1848,16 @@ button:disabled {
   align-items: center;
 }
 
-.add-food-search-row {
+.product-search-tools {
   grid-template-columns: minmax(0, 1fr) 50px 50px;
 }
 
 .library-open-btn {
   width: 50px;
+  height: 50px;
   min-height: 50px;
+  display: grid;
+  place-items: center;
   border-radius: 18px;
   background: var(--green-soft);
   color: #128247;
@@ -2599,6 +2612,19 @@ button:disabled {
   gap: 10px;
 }
 
+.modal-card .modal-actions {
+  position: sticky;
+  bottom: -18px;
+  z-index: 2;
+  padding: 10px 0 18px;
+  margin-bottom: -18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--panel) 24%);
+}
+
+.modal-actions-single {
+  grid-template-columns: 1fr;
+}
+
 .modal-actions .primary-btn,
 .modal-actions .secondary-btn,
 .modal-actions .danger-btn {
@@ -2942,18 +2968,101 @@ button:disabled {
 }
 
 .profile-actions .secondary-btn {
+  width: 100%;
+  height: 52px;
   min-height: 52px;
   padding: 0 12px;
   background: rgba(255, 255, 255, 0.12);
   color: #fff;
+  justify-content: center;
   text-align: center;
 }
 
-.profile-actions .profile-action-wide {
-  grid-column: 1 / -1;
-  background:
-    radial-gradient(circle at 20% 10%, rgba(255, 255, 255, 0.24), transparent 34%),
-    linear-gradient(145deg, #123524 0%, #128247 48%, #0b5a33 100%);
+.reminders-master,
+.reminders-list,
+.reminder-card,
+.reminder-card-body {
+  display: grid;
+  gap: 12px;
+}
+
+.reminders-master {
+  padding: 18px;
+}
+
+.reminder-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.reminder-card.muted {
+  opacity: 0.72;
+}
+
+.reminder-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.reminder-card-head h2,
+.reminder-card-head h3 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.1;
+  font-weight: 950;
+}
+
+.reminder-card-head span {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.reminder-setting-row {
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(118px, auto);
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 18px;
+  background: var(--soft);
+}
+
+.reminder-setting-row span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.reminder-setting-row input,
+.reminder-setting-row select {
+  min-height: 38px;
+  min-width: 112px;
+  border: 0;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 900;
+  text-align: center;
+  outline: none;
+}
+
+.reminder-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  font-weight: 800;
 }
 
 .account-delete-panel {
@@ -3923,6 +4032,28 @@ button:disabled {
 
 .keyboard-open .add-meal-submit {
   bottom: 12px;
+}
+
+.keyboard-open .modal-backdrop {
+  height: calc(100dvh - min(var(--keyboard-offset), 46dvh));
+  padding-top: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+}
+
+.keyboard-open .modal-card {
+  max-height: calc(100dvh - min(var(--keyboard-offset), 46dvh) - 16px);
+  transform: translateY(-4px);
+}
+
+.keyboard-open .modal-card:focus-within {
+  scroll-padding-bottom: 108px;
+}
+
+.modal-card input,
+.modal-card select,
+.modal-card textarea {
+  scroll-margin-top: 92px;
+  scroll-margin-bottom: 112px;
 }
 
 .keyboard-open .keyboard-done {
