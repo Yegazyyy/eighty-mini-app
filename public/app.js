@@ -357,6 +357,7 @@ function ensureShape() {
     waterEnabled: true,
     waterManual: false,
     waterGoal: 2200,
+    targetsPanelOpen: false,
     ...(state.settings || {})
   };
   state.products ||= [];
@@ -479,8 +480,14 @@ function registrationIsoDate() {
   return toIsoDate(date);
 }
 
+function dayNavigationMinDate() {
+  const today = todayIso();
+  const registered = registrationIsoDate();
+  return registered > today ? today : registered;
+}
+
 function analyticsMinDate() {
-  return registrationIsoDate();
+  return dayNavigationMinDate();
 }
 
 function clampAnalyticsDate(value) {
@@ -965,10 +972,11 @@ function availableDayDates() {
 }
 
 function nearestAvailableDay(date, delta) {
-  const days = availableDayDates();
-  if (delta < 0) return days.filter((day) => day < date).at(-1) || null;
-  if (delta > 0) return days.find((day) => day > date) || null;
-  return days.includes(date) ? date : todayIso();
+  const today = todayIso();
+  const min = dayNavigationMinDate();
+  const current = clampDate(date || today, min, today);
+  const next = addDays(current, delta);
+  return next >= min && next <= today ? next : null;
 }
 
 function canChangeDay(date, delta) {
@@ -977,10 +985,8 @@ function canChangeDay(date, delta) {
 
 function normalizeAvailableDay(date) {
   const today = todayIso();
-  const days = availableDayDates();
-  if (days.includes(date)) return date;
-  if (!date || date > today) return today;
-  return today;
+  const min = dayNavigationMinDate();
+  return clampDate(date || today, min, today);
 }
 
 function allTrackedDates() {
@@ -2680,7 +2686,7 @@ function waterHistoryRow(item) {
 }
 
 function screenAnalytics(targets = calcTargets()) {
-  analyticsDate = clampAnalyticsDate(analyticsDate);
+  analyticsDate = normalizeAvailableDay(analyticsDate);
   if (analyticsView === "periods") return screenAnalyticsPeriods();
 
   const dayStats = sumNutrients(state.diary[analyticsDate] || []);
@@ -4427,22 +4433,44 @@ function achievementsModal(earnedOnly = false) {
 
 function targetsPanel(targets) {
   const p = state.profile;
-  return `<form class="panel" data-form="targets">
-    <div class="section-title nutrition-title">
-      <h2>КБЖУ</h2>
-      <div class="section-title-actions">
-        <span>${!targets.complete ? "Заполните данные" : targets.manual ? "Ручной режим" : `BMR ${round(targets.bmr)} ккал`}</span>
-        <button class="icon-btn compact neutral nutrition-info-btn" type="button" data-action="nutrition-info" title="О расчёте КБЖУ" aria-label="О расчёте КБЖУ">ℹ️</button>
+  const open = Boolean(state.settings.targetsPanelOpen);
+  return `<form class="panel targets-panel ${open ? "open" : "collapsed"}" data-form="targets" data-targets-panel>
+    <button class="targets-panel-toggle" type="button" data-action="toggle-targets-panel" aria-expanded="${open}" aria-controls="targets-panel-body">
+      <span>
+        <h2>КБЖУ · Расчёт</h2>
+        <em>${targetsGoalLabel(p)}</em>
+        <strong>${targetsSummaryLine(targets)}</strong>
+      </span>
+      <i aria-hidden="true">▼</i>
+    </button>
+    <div class="targets-panel-body" id="targets-panel-body" aria-hidden="${!open}" ${open ? "" : "inert"}>
+      <div class="targets-panel-inner">
+        <div class="section-title nutrition-title">
+          <h2>КБЖУ · Расчёт</h2>
+          <div class="section-title-actions">
+            <span>${!targets.complete ? "Заполните данные" : targets.manual ? "Ручной режим" : `BMR ${round(targets.bmr)} ккал`}</span>
+            <button class="icon-btn compact neutral nutrition-info-btn" type="button" data-action="nutrition-info" title="О расчёте КБЖУ" aria-label="О расчёте КБЖУ">ℹ️</button>
+          </div>
+        </div>
+        <div class="segmented">
+          <label><input type="radio" name="targetMode" value="auto" ${p.targetMode !== "manual" ? "checked" : ""}>Автоматический расчёт</label>
+          <label><input type="radio" name="targetMode" value="manual" ${p.targetMode === "manual" ? "checked" : ""}>Ручной режим</label>
+        </div>
+        ${p.targetMode === "manual" ? manualTargetsFields(p) : autoTargetsFields(p)}
+        <div class="target-grid">${targetCards(targets)}</div>
+        <button class="secondary-btn recalc-btn" type="button" data-action="recalculate">Обновить расчёт</button>
       </div>
     </div>
-    <div class="segmented">
-      <label><input type="radio" name="targetMode" value="auto" ${p.targetMode !== "manual" ? "checked" : ""}>Автоматический расчёт</label>
-      <label><input type="radio" name="targetMode" value="manual" ${p.targetMode === "manual" ? "checked" : ""}>Ручной режим</label>
-    </div>
-    ${p.targetMode === "manual" ? manualTargetsFields(p) : autoTargetsFields(p)}
-    <div class="target-grid">${targetCards(targets)}</div>
-    <button class="secondary-btn recalc-btn" type="button" data-action="recalculate">Обновить расчёт</button>
   </form>`;
+}
+
+function targetsGoalLabel(profile) {
+  if (profile.targetMode === "manual") return "Текущая цель: ручной режим";
+  return `Текущая цель: ${labels.goals[profile.goalMode] || "не выбрана"}`;
+}
+
+function targetsSummaryLine(targets) {
+  return `${targetValue(targets.calories, "ккал")} • Б ${targetValue(targets.protein)} • Ж ${targetValue(targets.fat)} • У ${targetValue(targets.carbs)}`;
 }
 
 function autoTargetsFields(p) {
@@ -4758,6 +4786,23 @@ app.addEventListener("click", (event) => {
   }
   if (button.dataset.action === "prev-date") changeDate(-1);
   if (button.dataset.action === "next-date") changeDate(1);
+  if (button.dataset.action === "toggle-targets-panel") {
+    const open = !state.settings.targetsPanelOpen;
+    state.settings.targetsPanelOpen = open;
+    persist();
+    const panel = button.closest("[data-targets-panel]");
+    if (panel) {
+      panel.classList.toggle("open", open);
+      panel.classList.toggle("collapsed", !open);
+      button.setAttribute("aria-expanded", String(open));
+      const body = panel.querySelector(".targets-panel-body");
+      if (body) {
+        body.setAttribute("aria-hidden", String(!open));
+        body.toggleAttribute("inert", !open);
+      }
+    }
+    return;
+  }
   if (button.dataset.action === "recalculate") {
     const form = button.closest("form");
     if (form?.dataset.form === "targets") {
