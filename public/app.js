@@ -162,8 +162,6 @@ let tabIndicatorFromScreen = null;
 let screenTransition = null;
 let screenTransitionTimer = null;
 let daySwipe = null;
-let daySwipeIntro = null;
-let daySwipeIntroTimer = null;
 let selectedDate = todayIso();
 let saveTimer = null;
 let analyticsDate = todayIso();
@@ -954,6 +952,37 @@ function activeDay(date) {
   return (state.diary?.[date] || []).length > 0 || waterTotal(date) >= waterGoal();
 }
 
+function hasSavedDayData(date) {
+  return (state.diary?.[date] || []).length > 0 || waterTotal(date) > 0 || number(state.water?.[date]) > 0;
+}
+
+function availableDayDates() {
+  const today = todayIso();
+  return [...new Set([
+    today,
+    ...allTrackedDates().filter((date) => date <= today && hasSavedDayData(date))
+  ])].sort();
+}
+
+function nearestAvailableDay(date, delta) {
+  const days = availableDayDates();
+  if (delta < 0) return days.filter((day) => day < date).at(-1) || null;
+  if (delta > 0) return days.find((day) => day > date) || null;
+  return days.includes(date) ? date : todayIso();
+}
+
+function canChangeDay(date, delta) {
+  return Boolean(nearestAvailableDay(date, delta));
+}
+
+function normalizeAvailableDay(date) {
+  const today = todayIso();
+  const days = availableDayDates();
+  if (days.includes(date)) return date;
+  if (!date || date > today) return today;
+  return today;
+}
+
 function allTrackedDates() {
   return [...new Set([
     ...Object.keys(state.diary || {}),
@@ -1019,19 +1048,52 @@ function targetReached() {
   return Math.abs(current - target) <= 0.1;
 }
 
+function nightMealAdded() {
+  return Object.values(state.diary || {}).some((items) => (items || []).some((item) => {
+    if (!item?.createdAt) return false;
+    const date = new Date(item.createdAt);
+    if (Number.isNaN(date.getTime())) return false;
+    const hour = date.getHours();
+    return hour >= 0 && hour < 5;
+  }));
+}
+
+function perfectNutritionDay() {
+  const targets = calcTargets();
+  if (!targets.complete) return false;
+  return allTrackedDates().some((date) => {
+    const nutrients = sumNutrients(state.diary?.[date] || []);
+    const waterReady = waterTotal(date) >= waterGoal();
+    const caloriesReady = nutrients.calories >= targets.calories * 0.95;
+    const proteinReady = nutrients.protein >= targets.protein * 0.95;
+    const fatReady = nutrients.fat >= targets.fat * 0.95;
+    const carbsReady = nutrients.carbs >= targets.carbs * 0.95;
+    return waterReady && caloriesReady && proteinReady && fatReady && carbsReady;
+  });
+}
+
 function achievementDefinitions() {
   const activeDays = allTrackedDates().filter(activeDay).length;
+  const meals = totalMealEntries();
+  const waterDays = waterGoalDays();
   return [
-    { id: "first-day", title: "🏆 Первый день", value: activeDays, target: 1 },
-    { id: "streak-7", title: "🔥 7 дней подряд", value: state.stats.maxStreak, target: 7 },
-    { id: "streak-30", title: "🔥 30 дней подряд", value: state.stats.maxStreak, target: 30 },
-    { id: "water-10", title: "💧 Выполнена норма воды 10 раз", value: waterGoalDays(), target: 10 },
-    { id: "water-50", title: "💧 Выполнена норма воды 50 раз", value: waterGoalDays(), target: 50 },
-    { id: "meals-100", title: "Добавлено 100 приёмов пищи", value: totalMealEntries(), target: 100 },
-    { id: "meals-500", title: "Добавлено 500 приёмов пищи", value: totalMealEntries(), target: 500 },
-    { id: "loss-5", title: "⚖ Потеряно 5 кг", value: weightLost(), target: 5 },
-    { id: "loss-10", title: "⚖ Потеряно 10 кг", value: weightLost(), target: 10 },
-    { id: "target-weight", title: "⚖ Достигнута цель по весу", value: targetReached() ? 1 : 0, target: 1 }
+    { id: "first-day", category: "series", title: "🏆 Первый день", description: "Заполнить дневник хотя бы один день.", value: activeDays, target: 1 },
+    { id: "streak-7", category: "series", title: "🔥 7 дней подряд", description: "Вести дневник 7 дней подряд.", value: state.stats.maxStreak, target: 7 },
+    { id: "streak-30", category: "series", title: "🔥 30 дней подряд", description: "Вести дневник 30 дней подряд.", value: state.stats.maxStreak, target: 30 },
+    { id: "streak-100", category: "series", title: "🔥 100 дней подряд", description: "Вести дневник 100 дней подряд.", value: state.stats.maxStreak, target: 100 },
+    { id: "meals-10", category: "food", title: "🍽 Добавлено 10 приёмов пищи", description: "Добавить 10 записей в рацион.", value: meals, target: 10 },
+    { id: "meals-100", category: "food", title: "🍽 Добавлено 100 приёмов пищи", description: "Добавить 100 записей в рацион.", value: meals, target: 100 },
+    { id: "meals-500", category: "food", title: "🍽 Добавлено 500 приёмов пищи", description: "Добавить 500 записей в рацион.", value: meals, target: 500 },
+    { id: "meals-1000", category: "food", title: "🍽 Добавлено 1000 приёмов пищи", description: "Добавить 1000 записей в рацион.", value: meals, target: 1000 },
+    { id: "water-10", category: "water", title: "💧 Выполнена норма воды 10 раз", description: "Выполнить дневную норму воды 10 раз.", value: waterDays, target: 10 },
+    { id: "water-50", category: "water", title: "💧 Выполнена норма воды 50 раз", description: "Выполнить дневную норму воды 50 раз.", value: waterDays, target: 50 },
+    { id: "water-100", category: "water", title: "💧 Выполнена норма воды 100 раз", description: "Выполнить дневную норму воды 100 раз.", value: waterDays, target: 100 },
+    { id: "loss-5", category: "weight", title: "⚖ Потеряно 5 кг", description: "Снизить вес на 5 кг от стартового.", value: weightLost(), target: 5 },
+    { id: "loss-10", category: "weight", title: "⚖ Потеряно 10 кг", description: "Снизить вес на 10 кг от стартового.", value: weightLost(), target: 10 },
+    { id: "target-weight", category: "weight", title: "⚖ Достигнута цель по весу", description: "Дойти до указанной цели по весу.", value: targetReached() ? 1 : 0, target: 1 },
+    { id: "night-owl", category: "secret", hidden: true, title: "🌙 Ночная сова", description: "Добавить приём пищи после полуночи.", value: nightMealAdded() ? 1 : 0, target: 1 },
+    { id: "perfect-day", category: "secret", hidden: true, title: "💧 Идеальный день", description: "Выполнить норму воды и КБЖУ за один день.", value: perfectNutritionDay() ? 1 : 0, target: 1 },
+    { id: "no-skips-30", category: "secret", hidden: true, title: "🎯 Без пропусков", description: "Вести дневник 30 дней подряд.", value: state.stats.maxStreak, target: 30 }
   ];
 }
 
@@ -1147,11 +1209,8 @@ function openAdd(meal = "breakfast") {
 }
 
 function changeDate(delta) {
-  const [year, month, day] = selectedDate.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-  date.setDate(date.getDate() + delta);
-  const next = toIsoDate(date);
-  if (next > todayIso()) return false;
+  const next = nearestAvailableDay(selectedDate, delta);
+  if (!next) return false;
   selectedDate = next;
   ensureShape();
   render();
@@ -1159,8 +1218,8 @@ function changeDate(delta) {
 }
 
 function changeAnalyticsDate(delta) {
-  const next = clampAnalyticsDate(addDays(analyticsDate, delta));
-  if (next === analyticsDate) return false;
+  const next = nearestAvailableDay(analyticsDate, delta);
+  if (!next) return false;
   analyticsDate = next;
   render();
   return true;
@@ -1569,7 +1628,8 @@ function addEntry(form) {
       label: diaryProduct.name,
       amount,
       unit: diaryProduct.type === "piece" ? "шт." : "г",
-      nutrients: calcProduct(diaryProduct, amount)
+      nutrients: calcProduct(diaryProduct, amount),
+      createdAt: new Date().toISOString()
     });
   }
   entryDraft = { meal, items: {} };
@@ -2189,6 +2249,8 @@ function onboardingStepDone() {
 function render() {
   ensureShape();
   ensureEntryDraft();
+  selectedDate = normalizeAvailableDay(selectedDate);
+  analyticsDate = normalizeAvailableDay(analyticsDate);
   if (!state.onboardingCompleted) {
     app.innerHTML = screenOnboarding();
     focusOnboardingField();
@@ -2248,7 +2310,6 @@ function screenStateClass(screen) {
     "screen",
     activeScreen === screen ? "active" : "",
     daySwipeEnabled(screen) ? "day-swipe-surface" : "",
-    daySwipeIntro?.screen === screen ? `day-swipe-enter day-swipe-enter-${daySwipeIntro.direction}` : "",
     screenTransition?.from === screen ? "transition-from" : "",
     screenTransition?.to === screen ? "transition-to" : ""
   ].filter(Boolean).join(" ");
@@ -2276,33 +2337,52 @@ function activateTabIndicatorMotion() {
   if (!nav || !indicator) return;
   nav.classList.add("nav-no-motion");
   const previousIndicatorX = nav.style.getPropertyValue("--tab-indicator-x");
+  const previousIndicatorY = nav.style.getPropertyValue("--tab-indicator-y");
   nav.style.setProperty("--tab-indicator-x", "0px");
+  nav.style.setProperty("--tab-indicator-y", "0px");
   indicator.offsetWidth;
-  const indicatorOriginLeft = indicator.getBoundingClientRect().left;
+  const indicatorOriginRect = indicator.getBoundingClientRect();
   if (previousIndicatorX) nav.style.setProperty("--tab-indicator-x", previousIndicatorX);
   else nav.style.removeProperty("--tab-indicator-x");
-  const indicatorX = (screen) => {
+  if (previousIndicatorY) nav.style.setProperty("--tab-indicator-y", previousIndicatorY);
+  else nav.style.removeProperty("--tab-indicator-y");
+  const indicatorPosition = (screen) => {
     const button = nav.querySelector(`.tab[data-screen="${screen}"]:not(.tab-action)`);
     if (!button) return null;
+    const icon = button.querySelector(".tab-icon");
+    if (!icon) return null;
     const buttonRect = button.getBoundingClientRect();
+    const iconRect = icon.getBoundingClientRect();
     const indicatorRect = indicator.getBoundingClientRect();
-    return buttonRect.left + (buttonRect.width / 2) - indicatorOriginLeft - (indicatorRect.width / 2);
+    return {
+      x: buttonRect.left + (buttonRect.width / 2) - indicatorOriginRect.left - (indicatorRect.width / 2),
+      y: iconRect.top + (iconRect.height / 2) - indicatorOriginRect.top - (indicatorRect.height / 2)
+    };
   };
-  const activeX = indicatorX(activeScreen);
-  const fromX = tabIndicatorFromScreen ? indicatorX(tabIndicatorFromScreen) : activeX;
-  const shouldAnimate = tabIndicatorFromScreen && fromX !== null && activeX !== null && fromX !== activeX;
-  if (fromX !== null) nav.style.setProperty("--tab-indicator-x", `${fromX}px`);
+  const activePosition = indicatorPosition(activeScreen);
+  const fromPosition = tabIndicatorFromScreen ? indicatorPosition(tabIndicatorFromScreen) : activePosition;
+  const shouldAnimate = tabIndicatorFromScreen && fromPosition && activePosition && (fromPosition.x !== activePosition.x || fromPosition.y !== activePosition.y);
+  if (fromPosition) {
+    nav.style.setProperty("--tab-indicator-x", `${fromPosition.x}px`);
+    nav.style.setProperty("--tab-indicator-y", `${fromPosition.y}px`);
+  }
   indicator.offsetWidth;
   const run = () => {
     nav.classList.add("nav-ready");
     if (!shouldAnimate) {
-      if (activeX !== null) nav.style.setProperty("--tab-indicator-x", `${activeX}px`);
+      if (activePosition) {
+        nav.style.setProperty("--tab-indicator-x", `${activePosition.x}px`);
+        nav.style.setProperty("--tab-indicator-y", `${activePosition.y}px`);
+      }
       tabIndicatorFromScreen = null;
       requestAnimationFrame(() => nav.classList.remove("nav-no-motion"));
       return;
     }
     nav.classList.remove("nav-no-motion");
-    if (activeX !== null) nav.style.setProperty("--tab-indicator-x", `${activeX}px`);
+    if (activePosition) {
+      nav.style.setProperty("--tab-indicator-x", `${activePosition.x}px`);
+      nav.style.setProperty("--tab-indicator-y", `${activePosition.y}px`);
+    }
     tabIndicatorFromScreen = null;
   };
   if (typeof requestAnimationFrame === "function") requestAnimationFrame(run);
@@ -2330,44 +2410,20 @@ function tabs() {
 }
 
 function canChangeDayBySwipe(screen, delta) {
-  if (screen === "diary") return addDays(selectedDate, delta) <= todayIso();
-  if (screen === "analytics") {
-    const next = addDays(analyticsDate, delta);
-    return next >= analyticsMinDate() && next <= todayIso();
-  }
+  if (screen === "diary") return canChangeDay(selectedDate, delta);
+  if (screen === "analytics") return canChangeDay(analyticsDate, delta);
   return false;
 }
 
 function applyDaySwipeChange(screen, delta) {
   if (activeScreen !== screen || !canChangeDayBySwipe(screen, delta)) return false;
-  if (daySwipeIntroTimer) {
-    clearTimeout(daySwipeIntroTimer);
-    daySwipeIntroTimer = null;
-  }
-  daySwipeIntro = { screen, direction: delta > 0 ? "next" : "prev" };
   if (screen === "diary") {
-    selectedDate = addDays(selectedDate, delta);
+    selectedDate = nearestAvailableDay(selectedDate, delta);
     ensureShape();
   }
-  if (screen === "analytics") analyticsDate = addDays(analyticsDate, delta);
+  if (screen === "analytics") analyticsDate = nearestAvailableDay(analyticsDate, delta);
   render();
-  daySwipeIntroTimer = setTimeout(() => {
-    daySwipeIntro = null;
-    daySwipeIntroTimer = null;
-  }, 220);
   return true;
-}
-
-function resetDaySwipeNode(node) {
-  if (!node) return;
-  node.style.transition = "transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out)";
-  node.style.transform = "translateX(0)";
-  node.style.opacity = "";
-  window.setTimeout(() => {
-    node.style.transition = "";
-    node.style.transform = "";
-    node.style.opacity = "";
-  }, 220);
 }
 
 function daySwipeStart(event) {
@@ -2410,14 +2466,6 @@ function daySwipeMove(event) {
   if (daySwipe.axis !== "horizontal") return;
   event.preventDefault();
   daySwipe.currentX = event.clientX;
-  const delta = dx < 0 ? 1 : -1;
-  const available = canChangeDayBySwipe(daySwipe.screen, delta);
-  const resisted = available ? dx : dx * 0.28;
-  const limit = daySwipe.width * 0.42;
-  const offset = clamp(resisted, -limit, limit);
-  daySwipe.node.style.transition = "none";
-  daySwipe.node.style.transform = `translateX(${offset}px)`;
-  daySwipe.node.style.opacity = String(1 - clamp(Math.abs(offset) / daySwipe.width, 0, 0.18));
 }
 
 function daySwipeEnd(event) {
@@ -2429,14 +2477,7 @@ function daySwipeEnd(event) {
   const delta = dx < 0 ? 1 : -1;
   const threshold = Math.min(96, Math.max(64, swipe.width * 0.22));
   const complete = Math.abs(dx) >= threshold && canChangeDayBySwipe(swipe.screen, delta);
-  if (!complete) {
-    resetDaySwipeNode(swipe.node);
-    return;
-  }
-  swipe.node.style.transition = "transform 0.2s var(--ease-out), opacity 0.2s var(--ease-out)";
-  swipe.node.style.transform = `translateX(${delta > 0 ? -swipe.width : swipe.width}px)`;
-  swipe.node.style.opacity = "0";
-  window.setTimeout(() => applyDaySwipeChange(swipe.screen, delta), 190);
+  if (complete) applyDaySwipeChange(swipe.screen, delta);
 }
 
 function screenDiary(targets, consumed) {
@@ -2462,12 +2503,13 @@ function screenDiary(targets, consumed) {
 }
 
 function diaryDayHeader() {
-  const isToday = selectedDate >= todayIso();
+  const hasPrevious = canChangeDay(selectedDate, -1);
+  const hasNext = canChangeDay(selectedDate, 1);
   return `<div class="diary-day-head">
     <div class="hello-card">Привет, ${escapeHtml(state.profile.name || currentUser.name || "Пользователь")}!</div>
     <div class="day-actions">
-      <button class="icon-btn" data-action="prev-date" title="Предыдущий день">${icons.prev}</button>
-      <button class="icon-btn" data-action="next-date" title="Следующий день" ${isToday ? "disabled" : ""}>${icons.next}</button>
+      <button class="icon-btn" data-action="prev-date" title="Предыдущий день" ${hasPrevious ? "" : "disabled"}>${icons.prev}</button>
+      <button class="icon-btn" data-action="next-date" title="Следующий день" ${hasNext ? "" : "disabled"}>${icons.next}</button>
     </div>
   </div>`;
 }
@@ -2660,10 +2702,12 @@ function screenAnalytics(targets = calcTargets()) {
 }
 
 function analyticsDateSwitcher() {
+  const hasPrevious = canChangeDay(analyticsDate, -1);
+  const hasNext = canChangeDay(analyticsDate, 1);
   return `<div class="date-switcher">
-    <button class="icon-btn" data-analytics-step="-1" title="Предыдущий день" ${analyticsDate <= analyticsMinDate() ? "disabled" : ""}>${icons.prev}</button>
+    <button class="icon-btn" data-analytics-step="-1" title="Предыдущий день" ${hasPrevious ? "" : "disabled"}>${icons.prev}</button>
     <strong>${formatFullDate(analyticsDate)}</strong>
-    <button class="icon-btn" data-analytics-step="1" title="Следующий день" ${analyticsDate >= todayIso() ? "disabled" : ""}>${icons.next}</button>
+    <button class="icon-btn" data-analytics-step="1" title="Следующий день" ${hasNext ? "" : "disabled"}>${icons.next}</button>
   </div>`;
 }
 
@@ -3217,7 +3261,8 @@ function useMealTemplate(id) {
       label: item.label || "Продукт",
       amount: item.amount,
       unit: item.unit || "г",
-      nutrients: { ...(item.nutrients || {}) }
+      nutrients: { ...(item.nutrients || {}) },
+      createdAt: new Date().toISOString()
     });
   }
   persist();
@@ -3584,7 +3629,8 @@ function addEightyFoodToMeal() {
     label: product.name,
     amount,
     unit: "г",
-    nutrients: calcProduct(product, amount)
+    nutrients: calcProduct(product, amount),
+    createdAt: new Date().toISOString()
   });
   eightyFoodDialog = null;
   addFoodSource = "mine";
@@ -3613,7 +3659,8 @@ function saveEightyImport(form) {
       label: product.name,
       amount,
       unit: "г",
-      nutrients: calcProduct(product, amount)
+      nutrients: calcProduct(product, amount),
+      createdAt: new Date().toISOString()
     });
   }
   eightyImport = { items: {}, query: "" };
@@ -4301,14 +4348,38 @@ function achievementsPanel() {
   </div>`;
 }
 
+function achievementCategoryMeta() {
+  return {
+    earned: { title: "🏆 Полученные", empty: "Полученных достижений пока нет" },
+    series: { title: "🔥 Серия", empty: "Достижений серии пока нет" },
+    food: { title: "🍽 Питание", empty: "Достижений питания пока нет" },
+    water: { title: "💧 Вода", empty: "Достижений воды пока нет" },
+    weight: { title: "⚖ Вес", empty: "Достижений веса пока нет" },
+    secret: { title: "❓ Скрытые", empty: "Скрытых достижений пока нет" }
+  };
+}
+
+function achievementFresh(item) {
+  const unlockedAt = state.achievements?.unlocked?.[item.id];
+  if (!unlockedAt) return false;
+  return Date.now() - new Date(unlockedAt).getTime() < 4000;
+}
+
 function achievementCard(item) {
   const done = isAchievementUnlocked(item.id);
+  const secret = item.hidden && !done;
   const progress = done ? 100 : clamp(item.value / Math.max(1, item.target) * 100, 0, 100);
   const value = item.id.startsWith("loss") ? round(item.value, 1) : round(item.value);
-  return `<div class="achievement-card ${done ? "done" : ""}">
-    <div>
-      <strong>${item.title}</strong>
-      <span>${done ? "Получено ✅" : `${value} / ${item.target}`}</span>
+  const title = secret ? "❓ Секретное достижение" : item.title;
+  const description = secret ? "???" : item.description;
+  const progressText = secret ? "???" : done ? "Получено" : `${value} / ${item.target}`;
+  return `<div class="achievement-card ${done ? "done" : ""} ${secret ? "secret" : ""} ${achievementFresh(item) ? "fresh" : ""}">
+    <div class="achievement-main">
+      <div>
+        <strong>${title}</strong>
+        <em>${description || ""}</em>
+      </div>
+      <span>${done ? "<b>✓</b>" : ""}${progressText}</span>
     </div>
     <div class="progress" style="--value:${progress}%"><i></i></div>
   </div>`;
@@ -4320,23 +4391,36 @@ function achievementList(items, emptyText) {
     : `<div class="empty-line">${emptyText}</div>`;
 }
 
+function achievementSection(id, items) {
+  const meta = achievementCategoryMeta()[id];
+  return `<section class="achievement-section">
+    <h4>${meta.title}</h4>
+    ${achievementList(items, meta.empty)}
+  </section>`;
+}
+
 function achievementsModal(earnedOnly = false) {
   const items = achievementDefinitions();
   const earned = items.filter((item) => isAchievementUnlocked(item.id));
-  const progress = items.filter((item) => !isAchievementUnlocked(item.id));
+  const body = earnedOnly
+    ? achievementSection("earned", earned)
+    : [
+      achievementSection("earned", earned),
+      ...["series", "food", "water", "weight", "secret"].map((category) => achievementSection(
+        category,
+        items.filter((item) => item.category === category && !isAchievementUnlocked(item.id))
+      ))
+    ].join("");
   return `<div class="modal-backdrop" data-modal-close="${earnedOnly ? "earned-achievements" : "achievements"}">
-    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Достижения">
-      <div class="modal-head">
+    <div class="modal-card achievements-modal" role="dialog" aria-modal="true" aria-label="Достижения">
+      <div class="modal-head achievements-modal-head">
         <div>
           <span>${earned.length} / ${items.length}</span>
           <h3>Достижения</h3>
         </div>
         <button class="icon-btn compact neutral" type="button" data-action="${earnedOnly ? "close-earned-achievements" : "close-achievements"}">×</button>
       </div>
-      ${earnedOnly
-        ? achievementList(earned, "Полученных достижений пока нет")
-        : `<div class="modal-section"><h4>Полученные</h4>${achievementList(earned, "Полученных достижений пока нет")}</div>
-           <div class="modal-section"><h4>В процессе</h4>${achievementList(progress, "Все достижения получены")}</div>`}
+      <div class="achievements-modal-body">${body}</div>
     </div>
   </div>`;
 }

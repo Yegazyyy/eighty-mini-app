@@ -313,7 +313,8 @@
         },
         "achievements": {
           "unlocked": {
-            "first-day": "2026-06-25T03:48:53.432Z"
+            "first-day": "2026-06-25T03:48:53.432Z",
+            "meals-10": "2026-06-27T01:53:43.760Z"
           }
         },
         "dishes": [],
@@ -322,7 +323,7 @@
         "accountResetAt": "2026-06-25T03:46:36.159Z",
         "mealTemplates": []
       },
-      "updatedAt": "2026-06-27T01:30:05.122Z"
+      "updatedAt": "2026-06-27T02:05:51.144Z"
     },
     "codex-onboarding-test": {
       "telegramId": "codex-onboarding-test",
