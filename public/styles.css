@@ -218,10 +218,11 @@ button:disabled {
 .onboarding-choice {
   min-height: 68px;
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-columns: 42px minmax(0, 1fr) 22px;
   align-items: center;
-  gap: 12px;
-  padding: 12px 14px;
+  column-gap: 12px;
+  row-gap: 3px;
+  padding: 11px 12px;
   border: 1px solid var(--line);
   border-radius: 22px;
   background: var(--soft);
@@ -244,6 +245,27 @@ button:disabled {
   font-weight: 950;
 }
 
+.onboarding-choice em {
+  grid-column: 2 / 3;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.onboarding-choice b {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: transparent;
+  color: transparent;
+  font-size: 13px;
+  font-weight: 950;
+}
+
 .onboarding-choice.selected {
   border-color: rgba(37, 211, 102, 0.42);
   background:
@@ -255,6 +277,15 @@ button:disabled {
 
 .onboarding-choice.selected span {
   background: rgba(255, 255, 255, 0.16);
+}
+
+.onboarding-choice.selected em {
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.onboarding-choice.selected b {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
 }
 
 .onboarding-results {
@@ -3859,11 +3890,238 @@ button:disabled {
   margin-top: 10px;
 }
 
+.target-choice-field {
+  display: grid;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.target-choice-field > label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.choice-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.choice-card-grid.compact {
+  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+}
+
+.choice-card {
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 20px;
+  align-items: center;
+  column-gap: 8px;
+  row-gap: 2px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--soft);
+  color: var(--ink);
+  text-align: left;
+}
+
+.choice-card span {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: #fff;
+  font-size: 18px;
+}
+
+.choice-card strong {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 950;
+  line-height: 1.15;
+}
+
+.choice-card em {
+  grid-column: 2 / 4;
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 750;
+  line-height: 1.25;
+}
+
+.choice-card b {
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: transparent;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.choice-card.selected {
+  border-color: rgba(37, 211, 102, 0.46);
+  background: linear-gradient(145deg, rgba(37, 211, 102, 0.18), rgba(18, 130, 71, 0.1));
+  box-shadow: 0 10px 22px rgba(18, 130, 71, 0.12);
+}
+
+.choice-card.selected span,
+.choice-card.selected b {
+  background: var(--green);
+  color: #fff;
+}
+
 .recalc-btn,
 .sticky-save {
   width: 100%;
   min-height: 52px;
   margin-top: 14px;
+}
+
+/* Compact UI polish */
+.stack {
+  gap: 14px;
+}
+
+.screen-header {
+  margin-bottom: 2px;
+}
+
+.screen-header span,
+.section-title span {
+  font-size: 11px;
+}
+
+.section-title {
+  gap: 5px;
+  margin-bottom: 8px;
+}
+
+.panel,
+.meal-card,
+.water-card,
+.stat-card,
+.item-card,
+.info-card,
+.day-history-card {
+  padding: 15px;
+}
+
+.profile-card {
+  gap: 14px;
+  padding: 17px;
+}
+
+.profile-main {
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 13px;
+}
+
+.avatar {
+  width: 72px;
+  height: 72px;
+  font-size: 28px;
+}
+
+.profile-card h2 {
+  margin: 2px 0 4px;
+  font-size: 24px;
+}
+
+.profile-card p {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.profile-targets,
+.weight-goal-grid {
+  gap: 7px;
+}
+
+.profile-targets .mini-stat,
+.weight-goal-grid .mini-stat {
+  min-height: 66px;
+  padding: 10px 9px;
+}
+
+.mini-stat {
+  min-height: 74px;
+  padding: 11px;
+}
+
+.mini-stat span,
+.stat-card span {
+  font-size: 12px;
+}
+
+.field {
+  gap: 5px;
+}
+
+.field label {
+  font-size: 12px;
+}
+
+.field input,
+.field select,
+.inline-form input,
+.search-input {
+  min-height: 46px;
+  padding: 0 14px;
+  font-size: 15px;
+}
+
+.primary-btn,
+.secondary-btn,
+.chip-btn {
+  min-height: 40px;
+}
+
+.profile-actions {
+  gap: 8px;
+}
+
+.profile-actions .secondary-btn {
+  height: 48px;
+  min-height: 48px;
+}
+
+.targets-panel-toggle {
+  padding: 0;
+}
+
+.targets-panel-inner > .section-title {
+  margin-top: 12px;
+}
+
+.target-controls {
+  margin-top: 8px;
+  gap: 10px;
+}
+
+.target-controls .field,
+.target-grid .mini-stat {
+  min-height: 74px;
+}
+
+.target-controls .field input,
+.target-controls .field select {
+  min-height: 42px;
+}
+
+.target-grid {
+  margin-top: 8px;
+}
+
+.recalc-btn,
+.sticky-save {
+  min-height: 48px;
+  margin-top: 12px;
 }
 
 .profile-app-info {
@@ -5118,7 +5376,8 @@ button:disabled {
 :root[data-theme="dark"] .big-empty strong,
 :root[data-theme="dark"] .meal-cart-toggle strong,
 :root[data-theme="dark"] .dish-summary b,
-:root[data-theme="dark"] .onboarding-choice strong {
+:root[data-theme="dark"] .onboarding-choice strong,
+:root[data-theme="dark"] .choice-card strong {
   color: #f4f7f5;
 }
 
@@ -5236,6 +5495,37 @@ button:disabled {
 
 :root[data-theme="dark"] .water-help p {
   color: #c7d0cb;
+}
+
+:root[data-theme="dark"] .onboarding-choice em,
+:root[data-theme="dark"] .choice-card em {
+  color: #aeb9b3;
+}
+
+:root[data-theme="dark"] .choice-card span {
+  background: rgba(37, 211, 102, 0.14);
+  color: #8cf2ad;
+}
+
+:root[data-theme="dark"] .choice-card {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: #1a221e;
+  color: var(--ink);
+}
+
+:root[data-theme="dark"] .choice-card.selected {
+  border-color: rgba(37, 211, 102, 0.45);
+  background: linear-gradient(145deg, rgba(37, 211, 102, 0.18), rgba(37, 211, 102, 0.08));
+}
+
+:root[data-theme="dark"] .choice-card.selected span,
+:root[data-theme="dark"] .choice-card.selected b {
+  background: #25d366;
+  color: #06110b;
+}
+
+:root[data-theme="dark"] .onboarding-choice.selected em {
+  color: rgba(255, 255, 255, 0.78);
 }
 
 :root[data-theme="dark"] .water-complete,

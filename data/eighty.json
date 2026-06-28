@@ -14,7 +14,7 @@
           "targetWeight": 80,
           "activity": "minimal",
           "goalMode": "loss",
-          "targetMode": "manual",
+          "targetMode": "auto",
           "deficitPercent": 15,
           "surplusPercent": 10,
           "manualTargets": {
@@ -28,7 +28,7 @@
           "waterEnabled": true,
           "waterManual": false,
           "waterGoal": 2950,
-          "targetsPanelOpen": false,
+          "targetsPanelOpen": true,
           "themeMode": "dark",
           "reminders": {
             "enabled": true,
@@ -437,7 +437,7 @@
         "accountResetAt": "2026-06-25T03:46:36.159Z",
         "mealTemplates": []
       },
-      "updatedAt": "2026-06-28T01:38:08.595Z"
+      "updatedAt": "2026-06-28T17:43:11.628Z"
     },
     "codex-onboarding-test": {
       "telegramId": "codex-onboarding-test",

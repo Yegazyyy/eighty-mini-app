@@ -99,9 +99,9 @@ const eightyFoods = eightyFoodCategories.flatMap((category) => category.products
 
 const labels = {
   activities: {
-    minimal: "Минимальная",
-    low: "Низкая",
-    medium: "Средняя",
+    minimal: "Сидячий",
+    low: "Лёгкая активность",
+    medium: "Умеренная",
     high: "Высокая",
     veryHigh: "Очень высокая"
   },
@@ -109,6 +109,7 @@ const labels = {
     loss: "Похудение",
     maintain: "Поддержание",
     gain: "Набор массы",
+    recomposition: "Рекомпозиция",
     diary: "Просто вести дневник"
   },
   meals: {
@@ -143,6 +144,23 @@ const labels = {
     piece: "Поштучно"
   }
 };
+
+const goalOptions = [
+  { value: "loss", icon: "⬇️", title: "Похудение", description: "Мягкий дефицит для снижения веса" },
+  { value: "maintain", icon: "↔️", title: "Поддержание", description: "Сохранить текущую форму" },
+  { value: "gain", icon: "⬆️", title: "Набор массы", description: "Профицит для роста мышц" },
+  { value: "recomposition", icon: "🔄", title: "Рекомпозиция", description: "Больше белка и небольшой дефицит" }
+];
+
+const activityOptions = [
+  { value: "minimal", icon: "🪑", title: "Сидячий", description: "Офис, мало движения" },
+  { value: "low", icon: "🚶", title: "Лёгкая активность", description: "1–3 тренировки в неделю" },
+  { value: "medium", icon: "🏃", title: "Умеренная", description: "3–5 тренировок в неделю" },
+  { value: "high", icon: "💪", title: "Высокая", description: "6–7 тренировок или физический труд" },
+  { value: "veryHigh", icon: "🏋️", title: "Очень высокая", description: "Ежедневные нагрузки и активная работа" }
+];
+
+const optionValueExists = (options, value) => options.some((item) => item.value === value);
 
 const icons = {
   diary: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="5" y="4" width="14" height="17" rx="3"/><path d="M9 9h6"/><path d="M9 13h6"/><path d="M9 17h4"/></svg>`,
@@ -509,6 +527,7 @@ function ensureShape() {
   };
   state.profile.targetMode ||= state.profile.goalMode === "manual" ? "manual" : "auto";
   if (state.profile.goalMode === "manual") state.profile.goalMode = "loss";
+  if (state.profile.goalMode === "diary") state.profile.goalMode = "maintain";
   state.profile.manualTargets = {
     calories: "",
     protein: "",
@@ -733,6 +752,23 @@ function pluralProduct(count) {
   return `${count} продуктов`;
 }
 
+function autoNutritionForGoal(goalMode, weight, maintenance, profile = {}) {
+  const normalizedGoal = goalMode === "diary" ? "maintain" : goalMode;
+  const calories = normalizedGoal === "loss"
+    ? maintenance * (1 - number(profile.deficitPercent, 15) / 100)
+    : normalizedGoal === "gain"
+      ? maintenance * (1 + number(profile.surplusPercent, 10) / 100)
+      : normalizedGoal === "recomposition"
+        ? maintenance * 0.95
+        : maintenance;
+  const proteinRatio = normalizedGoal === "recomposition" ? 2.2 : normalizedGoal === "gain" ? 2 : normalizedGoal === "loss" ? 1.8 : 1.6;
+  const fatRatio = normalizedGoal === "recomposition" || normalizedGoal === "loss" ? 0.8 : 0.9;
+  const protein = weight * proteinRatio;
+  const fat = weight * fatRatio;
+  const carbs = Math.max(0, (calories - protein * 4 - fat * 9) / 4);
+  return { calories, protein, fat, carbs };
+}
+
 function calcTargets() {
   const p = state.profile;
   if (p.targetMode === "manual") {
@@ -768,15 +804,7 @@ function calcTargets() {
   const sexOffset = p.sex === "male" ? 5 : p.sex === "female" ? -161 : -78;
   const bmr = 10 * weight + 6.25 * height - 5 * age + sexOffset;
   const maintenance = bmr * (activityFactors[p.activity] || activityFactors.low);
-  const multiplier = p.goalMode === "loss"
-    ? 1 - number(p.deficitPercent, 15) / 100
-    : p.goalMode === "gain"
-      ? 1 + number(p.surplusPercent, 10) / 100
-      : 1;
-  const calories = maintenance * multiplier;
-  const protein = weight * (p.goalMode === "gain" ? 2 : p.goalMode === "loss" ? 1.8 : 1.6);
-  const fat = weight * (p.goalMode === "loss" ? 0.8 : 0.9);
-  const carbs = Math.max(0, (calories - protein * 4 - fat * 9) / 4);
+  const { calories, protein, fat, carbs } = autoNutritionForGoal(p.goalMode, weight, maintenance, p);
   return { bmr, maintenance, calories, protein, fat, carbs, manual: false, complete: true };
 }
 
@@ -787,7 +815,7 @@ function calcAutoNutritionModes() {
   const age = number(p.age);
   const complete = weight > 0 && height > 0 && age > 0 && Boolean(p.sex) && Boolean(p.activity);
   if (!complete) {
-    return { complete: false, bmr: 0, maintenance: 0, loss: 0, gain: 0 };
+    return { complete: false, bmr: 0, maintenance: 0, loss: 0, recomposition: 0, gain: 0 };
   }
 
   const sexOffset = p.sex === "male" ? 5 : p.sex === "female" ? -161 : -78;
@@ -798,6 +826,7 @@ function calcAutoNutritionModes() {
     bmr,
     maintenance,
     loss: maintenance * (1 - number(p.deficitPercent, 15) / 100),
+    recomposition: maintenance * 0.95,
     gain: maintenance * (1 + number(p.surplusPercent, 10) / 100)
   };
 }
@@ -915,11 +944,10 @@ function calcOnboardingResults() {
   const sexOffset = draft.sex === "male" ? 5 : draft.sex === "female" ? -161 : -78;
   const bmr = weight > 0 && height > 0 && age > 0 ? 10 * weight + 6.25 * height - 5 * age + sexOffset : 0;
   const maintenance = bmr * (activityFactors[draft.activity] || activityFactors.low);
-  const multiplier = draft.goalMode === "loss" ? 0.85 : draft.goalMode === "gain" ? 1.1 : 1;
-  const calories = maintenance * multiplier;
-  const protein = weight * (draft.goalMode === "gain" ? 2 : draft.goalMode === "loss" ? 1.8 : 1.6);
-  const fat = weight * (draft.goalMode === "loss" ? 0.8 : 0.9);
-  const carbs = Math.max(0, (calories - protein * 4 - fat * 9) / 4);
+  const { calories, protein, fat, carbs } = autoNutritionForGoal(draft.goalMode, weight, maintenance, {
+    deficitPercent: 15,
+    surplusPercent: 10
+  });
   const water = Math.round(weight * waterRateForActivity(draft.activity) / 50) * 50;
   return { bmr, maintenance, calories, protein, fat, carbs, water };
 }
@@ -2602,28 +2630,24 @@ function onboardingStepProfile() {
   `, true);
 }
 
-function onboardingChoiceCard(icon, title, value, selected, dataset) {
+function onboardingChoiceCard(icon, title, value, selected, dataset, description = "") {
   return `<button class="onboarding-choice ${selected ? "selected" : ""}" type="button" ${dataset}="${value}">
     <span>${icon}</span>
     <strong>${title}</strong>
+    ${description ? `<em>${description}</em>` : ""}
+    <b aria-hidden="true">✓</b>
   </button>`;
 }
 
 function onboardingStepGoal() {
   const draft = ensureOnboardingDraft();
-  const cards = [
-    ["⬇️", "Похудение", "loss"],
-    ["⚖️", "Поддержание веса", "maintain"],
-    ["⬆️", "Набор массы", "gain"],
-    ["📒", "Просто вести дневник", "diary"]
-  ];
   return onboardingShell(`
     <div class="onboarding-copy">
       <span>Цель</span>
       <h1>Какая у вас цель?</h1>
     </div>
     <div class="onboarding-choice-grid">
-      ${cards.map(([icon, title, value]) => onboardingChoiceCard(icon, title, value, draft.goalMode === value, "data-onboarding-goal")).join("")}
+      ${goalOptions.map(({ icon, title, value, description }) => onboardingChoiceCard(icon, title, value, draft.goalMode === value, "data-onboarding-goal", description)).join("")}
     </div>
     <button class="primary-btn full-btn onboarding-main-btn" type="button" data-action="onboarding-next">Далее</button>
   `, true);
@@ -2646,20 +2670,13 @@ function onboardingStepTarget() {
 
 function onboardingStepActivity() {
   const draft = ensureOnboardingDraft();
-  const cards = [
-    ["😴", "Минимальная", "minimal"],
-    ["🚶", "Низкая", "low"],
-    ["🏃", "Средняя", "medium"],
-    ["💪", "Высокая", "high"],
-    ["🏋️", "Очень высокая", "veryHigh"]
-  ];
   return onboardingShell(`
     <div class="onboarding-copy">
       <span>Активность</span>
       <h1>Насколько вы активны?</h1>
     </div>
     <div class="onboarding-choice-grid">
-      ${cards.map(([icon, title, value]) => onboardingChoiceCard(icon, title, value, draft.activity === value, "data-onboarding-activity")).join("")}
+      ${activityOptions.map(({ icon, title, value, description }) => onboardingChoiceCard(icon, title, value, draft.activity === value, "data-onboarding-activity", description)).join("")}
     </div>
     <button class="primary-btn full-btn onboarding-main-btn" type="button" data-action="onboarding-next">Рассчитать</button>
   `, true);
@@ -5352,10 +5369,26 @@ function targetsSummaryLine(targets) {
   return `${targetValue(targets.calories, "ккал")} • Б ${targetValue(targets.protein)} • Ж ${targetValue(targets.fat)} • У ${targetValue(targets.carbs)}`;
 }
 
+function targetChoiceField(title, name, value, options, compact = false) {
+  const selectedValue = optionValueExists(options, value) ? value : name === "activity" ? "" : options[0]?.value || "";
+  return `<div class="target-choice-field ${compact ? "compact" : ""}">
+    <label>${title}</label>
+    <input type="hidden" name="${name}" value="${escapeHtml(selectedValue)}">
+    <div class="choice-card-grid ${compact ? "compact" : ""}">
+      ${options.map((item) => `<button class="choice-card ${selectedValue === item.value ? "selected" : ""}" type="button" data-target-choice="${name}" data-target-choice-value="${item.value}" aria-pressed="${selectedValue === item.value}">
+        <span>${item.icon}</span>
+        <strong>${item.title}</strong>
+        <em>${item.description}</em>
+        <b aria-hidden="true">✓</b>
+      </button>`).join("")}
+    </div>
+  </div>`;
+}
+
 function autoTargetsFields(p) {
   return `<div class="form-grid target-controls">
-    <div class="field"><label>Цель</label><select name="goalMode">${Object.entries(labels.goals).map(([id, label]) => option(id, label, p.goalMode)).join("")}</select></div>
-    <div class="field"><label>Активность</label><select name="activity">${option("", "Не выбрана", p.activity)}${Object.entries(labels.activities).map(([id, label]) => option(id, label, p.activity)).join("")}</select></div>
+    ${targetChoiceField("Цель", "goalMode", p.goalMode, goalOptions)}
+    ${targetChoiceField("Активность", "activity", p.activity, activityOptions, true)}
     ${goalControls(p)}
     <input type="hidden" name="manualCalories" value="${p.manualTargets.calories}">
     <input type="hidden" name="manualProtein" value="${p.manualTargets.protein}">
@@ -5366,8 +5399,8 @@ function autoTargetsFields(p) {
 
 function manualTargetsFields(p) {
   return `<div class="form-grid target-controls">
-    <div class="field"><label>Цель</label><select name="goalMode">${Object.entries(labels.goals).map(([id, label]) => option(id, label, p.goalMode)).join("")}</select></div>
-    <div class="field"><label>Активность</label><select name="activity">${option("", "Не выбрана", p.activity)}${Object.entries(labels.activities).map(([id, label]) => option(id, label, p.activity)).join("")}</select></div>
+    ${targetChoiceField("Цель", "goalMode", p.goalMode, goalOptions)}
+    ${targetChoiceField("Активность", "activity", p.activity, activityOptions, true)}
     <input type="hidden" name="deficitPercent" value="${p.deficitPercent}">
     <input type="hidden" name="surplusPercent" value="${p.surplusPercent}">
     <div class="field"><label>Калории</label><input name="manualCalories" type="number" inputmode="numeric" value="${p.manualTargets.calories || ""}" placeholder="0"></div>
@@ -5435,6 +5468,7 @@ function nutritionInfoModal(targets) {
     ["⚡", "BMR", targetValue(modes.bmr, "ккал"), "Калории в состоянии покоя."],
     ["=", "Поддержание", targetValue(modes.maintenance, "ккал"), "Норма для сохранения текущего веса."],
     ["↓", "Похудение", targetValue(modes.loss, "ккал"), "Рекомендуемая норма для снижения веса."],
+    ["↻", "Рекомпозиция", targetValue(modes.recomposition, "ккал"), "Поддержание или небольшой дефицит с повышенным белком."],
     ["↑", "Набор массы", targetValue(modes.gain, "ккал"), "Рекомендуемая норма для набора веса."],
     ["◎", "Текущий режим", currentMode, "Выбранная цель в профиле."],
     ["80", "Текущая норма", targetValue(targets.calories, "ккал"), "Фактическая норма в приложении."]
@@ -5584,6 +5618,17 @@ app.addEventListener("click", async (event) => {
   const button = event.target.closest("button");
   if (!button) return;
   if (accountDeleteBusy) return;
+  if (button.dataset.targetChoice) {
+    const form = button.closest('form[data-form="targets"]');
+    const input = form?.querySelector(`[name="${button.dataset.targetChoice}"]`);
+    if (input) input.value = button.dataset.targetChoiceValue || "";
+    if (form) {
+      syncTargetsFromForm(form);
+      persist();
+      render();
+    }
+    return;
+  }
   if (button.dataset.amountStep) {
     stepCartAmount(button.dataset.amountStep, number(button.dataset.step));
     return;
