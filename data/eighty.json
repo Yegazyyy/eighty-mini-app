@@ -4,12 +4,12 @@
       "telegramId": "",
       "state": {
         "version": 5,
-        "createdAt": "2026-06-22T14:48:10.863Z",
+        "createdAt": "2026-06-25T03:46:36.159Z",
         "profile": {
-          "name": "Егор",
+          "name": "Егор Владимирович",
           "sex": "male",
           "age": 21,
-          "height": 174,
+          "height": 180,
           "weight": 99,
           "targetWeight": 80,
           "activity": "minimal",
@@ -18,10 +18,10 @@
           "deficitPercent": 15,
           "surplusPercent": 10,
           "manualTargets": {
-            "calories": "",
-            "protein": "",
-            "fat": "",
-            "carbs": ""
+            "calories": 1500,
+            "protein": 100,
+            "fat": 40,
+            "carbs": 90
           }
         },
         "settings": {
@@ -31,7 +31,7 @@
           "targetsPanelOpen": false,
           "themeMode": "dark",
           "reminders": {
-            "enabled": true,
+            "enabled": false,
             "diary": {
               "enabled": false,
               "time": "20:00"
@@ -59,26 +59,70 @@
         },
         "products": [
           {
-            "id": "s3zretnamqpeywog",
-            "name": "Котлета",
-            "type": "piece",
-            "calories": 270,
-            "protein": 27,
-            "fat": 17.3,
-            "carbs": 1.1,
-            "cookedDryWeight": 0,
-            "cookedReadyWeight": 100
+            "id": "ycub55vkmqyc6jch",
+            "name": "Фрукт2",
+            "type": "weight",
+            "calories": 20,
+            "protein": 0,
+            "fat": 0,
+            "carbs": 4,
+            "cookedDryWeight": 100,
+            "cookedReadyWeight": 230
           },
           {
-            "id": "61pomyfqmqpewvzi",
+            "id": "q4ur0xhpmqyc4unw",
+            "name": "Фрукт",
+            "type": "weight",
+            "calories": 20,
+            "protein": 0,
+            "fat": 0,
+            "carbs": 4,
+            "cookedDryWeight": 100,
+            "cookedReadyWeight": 230
+          },
+          {
+            "id": "wrws1y5xmqveuqk6",
             "name": "Спагетти",
             "type": "cooked",
-            "calories": 320,
-            "protein": 12.3,
-            "fat": 1.5,
-            "carbs": 64,
+            "calories": 240,
+            "protein": 10,
+            "fat": 2,
+            "carbs": 4,
             "cookedDryWeight": 100,
-            "cookedReadyWeight": 244
+            "cookedReadyWeight": 250
+          },
+          {
+            "id": "bcfr0xttmqvbqpht",
+            "name": "Котлета",
+            "type": "piece",
+            "calories": 230,
+            "protein": 29,
+            "fat": 14,
+            "carbs": 4,
+            "cookedDryWeight": 100,
+            "cookedReadyWeight": 230
+          },
+          {
+            "id": "iolohvivmqvbqc9x",
+            "name": "Банан",
+            "type": "weight",
+            "calories": 89,
+            "protein": 1.1,
+            "fat": 0.3,
+            "carbs": 22.8,
+            "cookedDryWeight": 100,
+            "cookedReadyWeight": 230
+          },
+          {
+            "id": "7nb3crkpmqvbq0pr",
+            "name": "Курица",
+            "type": "weight",
+            "calories": 190,
+            "protein": 18,
+            "fat": 3,
+            "carbs": 0.5,
+            "cookedDryWeight": 100,
+            "cookedReadyWeight": 230
           }
         ],
         "diary": {
@@ -113,9 +157,81 @@
             }
           ],
           "2026-06-23": [],
-          "2026-06-24": [],
+          "2026-06-24": [
+            {
+              "id": "h7jf98o9mqsa7ph4",
+              "meal": "breakfast",
+              "productId": "ntkfwftumqsa6s4v",
+              "label": "Спагетти",
+              "amount": 180,
+              "unit": "г",
+              "nutrients": {
+                "calories": 273.9130434782609,
+                "protein": 9.391304347826088,
+                "fat": 1.565217391304348,
+                "carbs": 54.78260869565218
+              }
+            },
+            {
+              "id": "q1f4vgxomqsa8gy8",
+              "meal": "breakfast",
+              "productId": "lp2zypdjmqsa81kc",
+              "label": "Котлета",
+              "amount": 2,
+              "unit": "шт.",
+              "nutrients": {
+                "calories": 440,
+                "protein": 32,
+                "fat": 28,
+                "carbs": 10
+              }
+            },
+            {
+              "id": "fupzogutmqsa8gy8",
+              "meal": "breakfast",
+              "productId": "ntkfwftumqsa6s4v",
+              "label": "Спагетти",
+              "amount": 180,
+              "unit": "г",
+              "nutrients": {
+                "calories": 273.9130434782609,
+                "protein": 9.391304347826088,
+                "fat": 1.565217391304348,
+                "carbs": 54.78260869565218
+              }
+            }
+          ],
           "2026-06-25": [],
-          "2026-06-27": [],
+          "2026-06-27": [
+            {
+              "id": "3t374y35mqveuvig",
+              "meal": "breakfast",
+              "productId": "wrws1y5xmqveuqk6",
+              "label": "Спагетти",
+              "amount": 100,
+              "unit": "г",
+              "nutrients": {
+                "calories": 96,
+                "protein": 4,
+                "fat": 0.8,
+                "carbs": 1.6
+              }
+            },
+            {
+              "id": "aywvmmcjmqvhc0nl",
+              "meal": "breakfast",
+              "productId": "iolohvivmqvbqc9x",
+              "label": "Банан",
+              "amount": 100,
+              "unit": "г",
+              "nutrients": {
+                "calories": 89,
+                "protein": 1.1,
+                "fat": 0.3,
+                "carbs": 22.8
+              }
+            }
+          ],
           "2026-06-26": [
             {
               "id": "s2dc38ttmqvbr0hj",
@@ -234,36 +350,6 @@
               "createdAt": "2026-06-27T20:33:00.132Z"
             },
             {
-              "id": "tujnnexdmqwth7fo",
-              "meal": "snacks",
-              "productId": "7nb3crkpmqvbq0pr",
-              "label": "Курица",
-              "amount": 300,
-              "unit": "г",
-              "nutrients": {
-                "calories": 570,
-                "protein": 54,
-                "fat": 9,
-                "carbs": 1.5
-              },
-              "createdAt": "2026-06-27T20:33:00.132Z"
-            },
-            {
-              "id": "nfyytqcpmqwth7fo",
-              "meal": "snacks",
-              "productId": "wrws1y5xmqveuqk6",
-              "label": "Спагетти",
-              "amount": 200,
-              "unit": "г",
-              "nutrients": {
-                "calories": 192,
-                "protein": 8,
-                "fat": 1.6,
-                "carbs": 3.2
-              },
-              "createdAt": "2026-06-27T20:33:00.132Z"
-            },
-            {
               "id": "da1ooecqmqwtiepr",
               "meal": "lunch",
               "productId": "iolohvivmqvbqc9x",
@@ -275,36 +361,6 @@
                 "protein": 0.22000000000000003,
                 "fat": 0.06,
                 "carbs": 4.5600000000000005
-              },
-              "createdAt": "2026-06-27T20:33:56.223Z"
-            },
-            {
-              "id": "uumq275rmqwtiepr",
-              "meal": "lunch",
-              "productId": "bcfr0xttmqvbqpht",
-              "label": "Котлета",
-              "amount": 1,
-              "unit": "шт.",
-              "nutrients": {
-                "calories": 230,
-                "protein": 29,
-                "fat": 14,
-                "carbs": 4
-              },
-              "createdAt": "2026-06-27T20:33:56.223Z"
-            },
-            {
-              "id": "82te8ppkmqwtiepr",
-              "meal": "lunch",
-              "productId": "7nb3crkpmqvbq0pr",
-              "label": "Курица",
-              "amount": 100,
-              "unit": "г",
-              "nutrients": {
-                "calories": 190,
-                "protein": 18,
-                "fat": 3,
-                "carbs": 0.5
               },
               "createdAt": "2026-06-27T20:33:56.223Z"
             },
@@ -339,24 +395,52 @@
               "createdAt": "2026-06-27T22:02:09.597Z"
             }
           ],
-          "2026-06-29": []
+          "2026-06-29": [
+            {
+              "id": "9dpqljlhmqyc56pg",
+              "meal": "snacks",
+              "productId": "temp-qctqjizbmqyc56pg",
+              "label": "Фрукт1",
+              "amount": 150,
+              "unit": "г",
+              "nutrients": {
+                "calories": 30,
+                "protein": 0,
+                "fat": 0,
+                "carbs": 6
+              },
+              "productSnapshot": {
+                "id": "temp-qctqjizbmqyc56pg",
+                "name": "Фрукт1",
+                "type": "weight",
+                "calories": 20,
+                "protein": 0,
+                "fat": 0,
+                "carbs": 4,
+                "cookedDryWeight": 100,
+                "cookedReadyWeight": 230,
+                "temporary": true
+              },
+              "createdAt": "2026-06-28T22:03:18.196Z"
+            }
+          ]
         },
         "water": {
           "2026-06-22": 0,
           "2026-06-23": 0,
-          "2026-06-24": 3750,
+          "2026-06-24": 0,
           "2026-06-25": 0,
-          "2026-06-27": 0,
+          "2026-06-27": 500,
           "2026-06-26": 0,
-          "2026-06-28": 0,
+          "2026-06-28": 250,
           "2026-06-29": 0
         },
         "weightLogs": [
           {
-            "id": "bs8her1nmqtj71k5",
-            "date": "2026-06-25",
+            "id": "pm2lqwz7mqv9dufi",
+            "date": "2026-06-26",
             "weight": 99,
-            "createdAt": "2026-06-25T00:00:00"
+            "createdAt": "2026-06-26T00:00:00"
           }
         ],
         "telegram": {
@@ -365,70 +449,48 @@
           "photoUrl": ""
         },
         "waterHistory": {
-          "2026-06-24": [
+          "2026-06-24": [],
+          "2026-06-25": [],
+          "2026-06-27": [
             {
-              "id": "anl3p5bnmqr3fuxg",
-              "amount": 3500,
-              "createdAt": "2026-06-24T12:00:00",
-              "migrated": true
+              "id": "v8ddiqpamqvh1rwz",
+              "amount": 250,
+              "createdAt": "2026-06-26T21:57:18.000Z"
             },
             {
-              "id": "62b6k6dmmqr3n7io",
+              "id": "4oyz705pmqvh1so8",
               "amount": 250,
-              "createdAt": "2026-06-23T20:30:59.000Z"
+              "createdAt": "2026-06-26T21:57:19.000Z"
             }
           ],
-          "2026-06-25": [],
-          "2026-06-27": [],
           "2026-06-26": [],
-          "2026-06-28": [],
+          "2026-06-28": [
+            {
+              "id": "ihkjmiskmqx227j9",
+              "amount": 250,
+              "createdAt": "2026-06-28T00:33:16.000Z"
+            }
+          ],
           "2026-06-29": []
         },
         "stats": {
-          "currentStreak": 0,
-          "maxStreak": 1
+          "currentStreak": 4,
+          "maxStreak": 4
         },
         "achievements": {
           "unlocked": {
-            "first-day": "2026-06-23T20:51:12.726Z",
-            "meals-10": "2026-06-27T22:38:10.054Z",
-            "night-owl": "2026-06-27T22:38:10.054Z"
+            "first-day": "2026-06-25T03:48:53.432Z",
+            "meals-10": "2026-06-27T01:53:43.760Z",
+            "night-owl": "2026-06-27T20:33:00.132Z"
           }
         },
-        "dishes": [
-          {
-            "id": "ppa9qi8gmqst5es1",
-            "name": "Салат",
-            "ingredients": [
-              {
-                "id": "vx5jhy2nmqst46mx",
-                "productId": "sk5jj3ohmqsrnzn8",
-                "amount": 100
-              },
-              {
-                "id": "qmtgpkjsmqst4aw3",
-                "productId": "srsth64fmqst4aw3",
-                "amount": 100
-              },
-              {
-                "id": "o45ued23mqst4vgn",
-                "productId": "fvle7rksmqst4vgn",
-                "amount": 100
-              },
-              {
-                "id": "v9fkwnppmqst51j9",
-                "productId": "tg075j2smqst51j9",
-                "amount": 100
-              }
-            ]
-          }
-        ],
+        "dishes": [],
         "eightyOverrides": {},
         "onboardingCompleted": true,
         "accountResetAt": "2026-06-25T03:46:36.159Z",
         "mealTemplates": []
       },
-      "updatedAt": "2026-06-28T21:03:20.196Z"
+      "updatedAt": "2026-06-28T22:04:21.544Z"
     },
     "codex-onboarding-test": {
       "telegramId": "codex-onboarding-test",

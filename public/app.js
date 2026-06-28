@@ -1244,6 +1244,10 @@ function activeDay(date) {
   return (state.diary?.[date] || []).length > 0 || waterTotal(date) >= waterGoal();
 }
 
+function streakDayConfirmed(date) {
+  return (state.diary?.[date] || []).length > 0;
+}
+
 function hasSavedDayData(date) {
   return (state.diary?.[date] || []).length > 0 || waterTotal(date) > 0 || number(state.water?.[date]) > 0;
 }
@@ -1287,22 +1291,25 @@ function dayDifference(a, b) {
 }
 
 function streakMetrics() {
+  const today = todayIso();
+  const todayConfirmed = streakDayConfirmed(today);
+  const anchorDate = todayConfirmed ? today : addDays(today, -1);
   let current = 0;
-  for (let date = todayIso(); activeDay(date); date = addDays(date, -1)) current++;
+  for (let date = anchorDate; streakDayConfirmed(date); date = addDays(date, -1)) current++;
 
   const dates = allTrackedDates();
-  const start = dates[0] || todayIso();
+  const start = dates[0] || today;
   let max = 0;
   let run = 0;
-  for (let date = start; date <= todayIso(); date = addDays(date, 1)) {
-    if (activeDay(date)) {
+  for (let date = start; date <= today; date = addDays(date, 1)) {
+    if (streakDayConfirmed(date)) {
       run++;
       max = Math.max(max, run);
     } else {
       run = 0;
     }
   }
-  return { current, max };
+  return { current, max, todayConfirmed };
 }
 
 function updateStats() {
@@ -3106,9 +3113,9 @@ function energyCard(targets, consumed, remaining, progress) {
   const ringValue = ringShowsConsumed ? consumed.calories : remaining;
   const ringLabel = ringShowsConsumed ? "Съедено" : "Осталось";
   const ringTargetText = targets.complete ? `из ${round(targets.calories)} ккал` : "ккал";
-  const streakActiveToday = (state.diary[todayIso()] || []).length > 0;
+  const streak = streakMetrics();
   return `<div class="energy-card" data-action="toggle-energy-ring" role="button" tabindex="0" aria-label="Переключить отображение калорий">
-    <span class="energy-streak-indicator ${streakActiveToday ? "active" : ""}"><i>🔥</i> ${round(state.stats.currentStreak)} дн.</span>
+    <span class="energy-streak-indicator ${streak.todayConfirmed ? "active" : ""}"><i>🔥</i> ${round(streak.current)} дн.</span>
     <div class="energy-ring" style="--progress:${progress}">
       <div>
         <span class="energy-ring-label">${ringLabel}</span>
