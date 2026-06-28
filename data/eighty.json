@@ -14,14 +14,14 @@
           "targetWeight": 80,
           "activity": "minimal",
           "goalMode": "loss",
-          "targetMode": "auto",
+          "targetMode": "manual",
           "deficitPercent": 15,
           "surplusPercent": 10,
           "manualTargets": {
-            "calories": "",
-            "protein": "",
-            "fat": "",
-            "carbs": ""
+            "calories": 1500,
+            "protein": 100,
+            "fat": 40,
+            "carbs": 90
           }
         },
         "settings": {
@@ -29,6 +29,7 @@
           "waterManual": false,
           "waterGoal": 2950,
           "targetsPanelOpen": false,
+          "themeMode": "dark",
           "reminders": {
             "enabled": true,
             "diary": {
@@ -295,7 +296,83 @@
               }
             }
           ],
-          "2026-06-28": []
+          "2026-06-28": [
+            {
+              "id": "usvx3yrymqwth7fo",
+              "meal": "snacks",
+              "productId": "iolohvivmqvbqc9x",
+              "label": "Банан",
+              "amount": 100,
+              "unit": "г",
+              "nutrients": {
+                "calories": 89,
+                "protein": 1.1,
+                "fat": 0.3,
+                "carbs": 22.8
+              },
+              "createdAt": "2026-06-27T20:33:00.132Z"
+            },
+            {
+              "id": "gjssocrgmqwth7fo",
+              "meal": "snacks",
+              "productId": "bcfr0xttmqvbqpht",
+              "label": "Котлета",
+              "amount": 5,
+              "unit": "шт.",
+              "nutrients": {
+                "calories": 1150,
+                "protein": 145,
+                "fat": 70,
+                "carbs": 20
+              },
+              "createdAt": "2026-06-27T20:33:00.132Z"
+            },
+            {
+              "id": "da1ooecqmqwtiepr",
+              "meal": "lunch",
+              "productId": "iolohvivmqvbqc9x",
+              "label": "Банан",
+              "amount": 20,
+              "unit": "г",
+              "nutrients": {
+                "calories": 17.8,
+                "protein": 0.22000000000000003,
+                "fat": 0.06,
+                "carbs": 4.5600000000000005
+              },
+              "createdAt": "2026-06-27T20:33:56.223Z"
+            },
+            {
+              "id": "a9na8z2mmqwwnpu4",
+              "meal": "snacks",
+              "productId": "iolohvivmqvbqc9x",
+              "label": "Банан",
+              "amount": 100,
+              "unit": "г",
+              "nutrients": {
+                "calories": 89,
+                "protein": 1.1,
+                "fat": 0.3,
+                "carbs": 22.8
+              },
+              "createdAt": "2026-06-27T22:02:02.764Z"
+            },
+            {
+              "id": "agqjku8dmqwwnv3x",
+              "meal": "snacks",
+              "productId": "iolohvivmqvbqc9x",
+              "label": "Банан",
+              "amount": 100,
+              "unit": "г",
+              "nutrients": {
+                "calories": 89,
+                "protein": 1.1,
+                "fat": 0.3,
+                "carbs": 22.8
+              },
+              "createdAt": "2026-06-27T22:02:09.597Z"
+            }
+          ]
         },
         "water": {
           "2026-06-22": 0,
@@ -304,7 +381,7 @@
           "2026-06-25": 0,
           "2026-06-27": 500,
           "2026-06-26": 0,
-          "2026-06-28": 0
+          "2026-06-28": 250
         },
         "weightLogs": [
           {
@@ -335,16 +412,23 @@
             }
           ],
           "2026-06-26": [],
-          "2026-06-28": []
+          "2026-06-28": [
+            {
+              "id": "ihkjmiskmqx227j9",
+              "amount": 250,
+              "createdAt": "2026-06-28T00:33:16.000Z"
+            }
+          ]
         },
         "stats": {
-          "currentStreak": 0,
-          "maxStreak": 2
+          "currentStreak": 3,
+          "maxStreak": 3
         },
         "achievements": {
           "unlocked": {
             "first-day": "2026-06-25T03:48:53.432Z",
-            "meals-10": "2026-06-27T01:53:43.760Z"
+            "meals-10": "2026-06-27T01:53:43.760Z",
+            "night-owl": "2026-06-27T20:33:00.132Z"
           }
         },
         "dishes": [],
@@ -353,7 +437,7 @@
         "accountResetAt": "2026-06-25T03:46:36.159Z",
         "mealTemplates": []
       },
-      "updatedAt": "2026-06-27T20:17:28.906Z"
+      "updatedAt": "2026-06-28T01:09:35.377Z"
     },
     "codex-onboarding-test": {
       "telegramId": "codex-onboarding-test",

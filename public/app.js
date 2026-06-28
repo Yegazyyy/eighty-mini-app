@@ -198,11 +198,13 @@ let eightyCategoryId = "";
 let eightyFoodDialog = null;
 let eightyImport = { items: {}, query: "" };
 let dishBuilder = null;
-let ingredientPicker = { source: "mine", query: "", categoryId: "", items: {} };
+let ingredientPicker = { source: "all", query: "", categoryId: "", items: {} };
 let waterHistoryOpen = false;
 let profileDetailsOpen = false;
 let nutritionInfoOpen = false;
 let remindersOpen = false;
+let themeSettingsOpen = false;
+let themeMenuOpen = false;
 let weightHistoryOpen = false;
 let weightEditor = null;
 let accountDeleteOpen = false;
@@ -214,6 +216,23 @@ let keyboardTimer = null;
 let keyboardScrollTimer = null;
 
 const formControlSelector = 'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), textarea, select';
+const systemThemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
+
+function resolvedTheme(mode = "system") {
+  return mode === "dark" || (mode === "system" && systemThemeQuery?.matches) ? "dark" : "light";
+}
+
+function applyTheme(mode = state?.settings?.themeMode || "system") {
+  const normalized = ["light", "dark", "system"].includes(mode) ? mode : "system";
+  const theme = resolvedTheme(normalized);
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.dataset.themeMode = normalized;
+  document.documentElement.style.colorScheme = theme;
+  tg?.setHeaderColor?.(theme === "dark" ? "#121614" : "#ffffff");
+  tg?.setBackgroundColor?.(theme === "dark" ? "#121614" : "#ffffff");
+}
+
+applyTheme("system");
 
 function isFormControl(element) {
   return element instanceof HTMLElement && element.matches(formControlSelector);
@@ -307,6 +326,14 @@ function setupKeyboardBehavior() {
     }, 180);
   });
 }
+
+function handleSystemThemeChange() {
+  if (!state || state.settings?.themeMode !== "system") return;
+  applyTheme("system");
+}
+
+systemThemeQuery?.addEventListener?.("change", handleSystemThemeChange);
+systemThemeQuery?.addListener?.(handleSystemThemeChange);
 
 async function bootstrap() {
   const initData = tg?.initData || "";
@@ -429,8 +456,10 @@ function ensureShape() {
     waterManual: false,
     waterGoal: 2200,
     targetsPanelOpen: false,
+    themeMode: "system",
     ...(state.settings || {})
   };
+  if (!["light", "dark", "system"].includes(state.settings.themeMode)) state.settings.themeMode = "system";
   state.settings.reminders = reminderSettings({
     ...(state.settings.reminders || {})
   });
@@ -510,6 +539,7 @@ function ensureShape() {
   updateStats();
   reconcileWeightAchievements();
   updateAchievements();
+  applyTheme(state.settings.themeMode);
 }
 
 function persist(options = {}) {
@@ -1231,7 +1261,7 @@ function setScreen(screen) {
   closeModal();
   if (screen === "add") {
     addPage = "home";
-    entryDraft.meal = suggestedMealByTime();
+    entryDraft = { meal: suggestedMealByTime(), items: {} };
     addCreateMenuOpen = false;
     addPanelMode = "existing";
     addFoodSource = "mine";
@@ -1281,12 +1311,44 @@ function setAddPage(page) {
 
 function openAdd(meal = "breakfast") {
   activeScreen = "add";
-  entryDraft.meal = meal;
+  entryDraft = { meal, items: {} };
   addPage = "ration";
   addPanelMode = "existing";
   addFoodSource = "mine";
   eightyCategoryId = "";
   eightyImport = { items: {}, query: "" };
+  render();
+}
+
+function openEntryEditor(id) {
+  const item = entriesForDate().find((entry) => entry.id === id);
+  if (!item) return;
+  const product = addMealItemById(item.productId);
+  if (!product) {
+    toast("Не удалось открыть продукт для редактирования");
+    return;
+  }
+  entryDraft = {
+    meal: item.meal,
+    items: { [product.id]: item.amount },
+    editing: {
+      id: item.id,
+      date: selectedDate,
+      meal: item.meal,
+      productId: product.id
+    }
+  };
+  activeScreen = "add";
+  addPage = "ration-amounts";
+  mealCartOpen = false;
+  addCreateMenuOpen = false;
+  render();
+}
+
+function cancelEntryEdit() {
+  entryDraft = { meal: entryDraft.meal || "breakfast", items: {} };
+  activeScreen = "diary";
+  addPage = "home";
   render();
 }
 
@@ -1321,6 +1383,8 @@ function closeModal(name) {
   if (!name || name === "profile-details") profileDetailsOpen = false;
   if (!name || name === "nutrition-info") nutritionInfoOpen = false;
   if (!name || name === "reminders") remindersOpen = false;
+  if (!name || name === "theme-settings") themeSettingsOpen = false;
+  if (!name || name === "theme-menu") themeMenuOpen = false;
   if (!name || name === "eighty-food") eightyFoodDialog = null;
   if (!name || name === "meal-template") mealTemplateEditor = null;
   if (!name || name === "library-editor") libraryEditor = null;
@@ -1602,10 +1666,13 @@ function resetTransientUiState() {
   eightyFoodDialog = null;
   eightyImport = { items: {}, query: "" };
   dishBuilder = null;
-  ingredientPicker = { source: "mine", query: "", categoryId: "", items: {} };
+  ingredientPicker = { source: "all", query: "", categoryId: "", items: {} };
   waterHistoryOpen = false;
   profileDetailsOpen = false;
   nutritionInfoOpen = false;
+  remindersOpen = false;
+  themeSettingsOpen = false;
+  themeMenuOpen = false;
   weightHistoryOpen = false;
   weightEditor = null;
   accountDeleteOpen = false;
@@ -1703,9 +1770,13 @@ function ensureDishBuilder() {
 function ingredientSearchItems(query) {
   const normalized = query.trim().toLowerCase();
   if (!normalized) return [];
-  return state.products
+  const personal = addMealItems()
     .filter((product) => product.name.toLowerCase().includes(normalized))
-    .map((product) => ({ source: "mine", product }))
+    .map((product) => ({ source: product.kind === "dish" ? "dish" : "mine", product }));
+  const eighty = userEightyFoods()
+    .filter((food) => food.name.toLowerCase().includes(normalized))
+    .map((food) => ({ source: "eighty", product: eightyAddMealItem(food) }));
+  return [...personal, ...eighty]
     .slice(0, 12);
 }
 
@@ -1888,6 +1959,26 @@ function addEntry(form) {
     .filter((item) => item.amount > 0);
 
   if (!selected.length) return toast("Выберите продукты и укажите количество");
+
+  if (entryDraft.editing) {
+    const editing = entryDraft.editing;
+    const { product, amount } = selected[0];
+    const entries = state.diary[editing.date] || [];
+    const item = entries.find((entry) => entry.id === editing.id);
+    if (!item) return toast("Запись не найдена");
+    item.amount = amount;
+    item.unit = product.type === "piece" ? "шт." : "г";
+    item.nutrients = calcProduct(product, amount);
+    entryDraft = { meal: editing.meal || meal, items: {} };
+    mealCartOpen = false;
+    activeScreen = "diary";
+    addPage = "home";
+    blurActive();
+    persist();
+    render();
+    toast("Изменения сохранены");
+    return;
+  }
 
   for (const { product, amount } of selected) {
     const diaryProduct = product.kind === "eighty" ? saveEightyProduct(product) : product;
@@ -2097,12 +2188,12 @@ function addPickedIngredientsToDish(form) {
     .filter(({ amount }) => number(amount) > 0);
   if (!items.length) return toast("Введите вес");
   for (const { item, amount } of items) {
-    const product = ingredientPicker.source === "eighty" ? saveEightyProduct(item) : item;
+    const product = item.kind === "eighty" ? saveEightyProduct(item) : item;
     const existing = draft.ingredients.find((ingredient) => ingredient.productId === product.id);
     if (existing) existing.amount = amount;
     else draft.ingredients.push({ id: uid(), productId: product.id, amount });
   }
-  ingredientPicker = { source: "mine", query: "", categoryId: "", items: {} };
+  ingredientPicker = { source: "all", query: "", categoryId: "", items: {} };
   addPage = "dish";
   blurActive();
   persist();
@@ -2885,7 +2976,7 @@ function mealCard(meal, data) {
 
 function entryRow(item) {
   return `<div class="entry-row">
-    <div class="entry-row-main">
+    <button class="entry-row-main" type="button" data-edit-entry="${item.id}" aria-label="Редактировать ${escapeHtml(item.label)}">
       <div class="entry-row-head">
         <strong>${escapeHtml(item.label)}</strong>
       </div>
@@ -2895,7 +2986,7 @@ function entryRow(item) {
         <span>Ж ${round(item.nutrients.fat)}</span>
         <span>У ${round(item.nutrients.carbs)}</span>
       </div>
-    </div>
+    </button>
     <button class="icon-btn compact delete-btn" data-delete-entry="${item.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
@@ -3000,15 +3091,74 @@ function analyticsDateSwitcher() {
 }
 
 function analyticsDayCard(stats, targets = calcTargets()) {
+  const calorieStatus = analyticsGoalStatus("calories", stats.calories, targets.calories, "ккал");
+  const macroStatuses = [
+    ["Белки", stats.protein, targets.protein, "protein"],
+    ["Жиры", stats.fat, targets.fat, "fat"],
+    ["Углеводы", stats.carbs, targets.carbs, "carbs"]
+  ];
+  const statuses = [calorieStatus, ...macroStatuses.map(([, value, target, type]) => analyticsGoalStatus(type, value, target, "г"))];
+  const doneCount = statuses.filter((item) => item.done).length;
   return `<section class="analytics-day-card">
     <span>${analyticsDate === todayIso() ? "Съедено сегодня" : "Съедено за день"}</span>
     <strong>${round(stats.calories)} / ${targetValue(targets.calories, "ккал")}</strong>
+    <p class="analytics-status ${calorieStatus.tone}">${calorieStatus.text}</p>
     <div class="day-macro-list">
-      <div><span>Белки</span><b>${round(stats.protein)} / ${targetValue(targets.protein, "г")}</b></div>
-      <div><span>Жиры</span><b>${round(stats.fat)} / ${targetValue(targets.fat, "г")}</b></div>
-      <div><span>Углеводы</span><b>${round(stats.carbs)} / ${targetValue(targets.carbs, "г")}</b></div>
+      ${macroStatuses.map(([label, value, target, type]) => analyticsMacroProgress(label, value, target, type)).join("")}
     </div>
+    ${analyticsGoalSummary(doneCount, statuses.length)}
   </section>`;
+}
+
+function analyticsGoalStatus(type, value, target, unit) {
+  if (number(target) <= 0) {
+    return { done: false, tone: "neutral", text: "Заполните профиль для расчёта цели" };
+  }
+
+  const current = number(value);
+  const goal = number(target);
+  const diff = current - goal;
+  const remaining = Math.max(0, goal - current);
+
+  if (type === "calories") {
+    const tolerance = 100;
+    if (Math.abs(diff) <= tolerance) return { done: true, tone: "done", text: "✅ Цель по калориям выполнена" };
+    if (diff > tolerance) return { done: false, tone: "warning", text: `⚠️ Превышено на ${round(diff)} ${unit}` };
+    return { done: false, tone: "neutral", text: `Осталось ${round(remaining)} ${unit}` };
+  }
+
+  if (type === "protein") {
+    if (current >= goal) return { done: true, tone: "done", text: "✅ Белок выполнен" };
+    return { done: false, tone: "neutral", text: `Осталось ${round(remaining)} ${unit}` };
+  }
+
+  if (type === "fat") {
+    if (current >= goal) return { done: true, tone: "done", text: "✅ Жиры выполнены" };
+    return { done: false, tone: "neutral", text: `Осталось ${round(remaining)} ${unit}` };
+  }
+
+  if (current >= goal) return { done: true, tone: "done", text: "✅ Углеводы выполнены" };
+  return { done: false, tone: "neutral", text: `Осталось ${round(remaining)} ${unit}` };
+}
+
+function analyticsGoalSummary(done, total) {
+  const text = done === total
+    ? "🎉 Все дневные цели выполнены!"
+    : done > 0
+      ? `💪 Выполнено ${done} из ${total} целей.`
+      : "Продолжайте заполнять дневник.";
+  const tone = done === total ? "done" : done > 0 ? "partial" : "neutral";
+  return `<div class="analytics-goal-summary ${tone}">${text}</div>`;
+}
+
+function analyticsMacroProgress(label, value, target, type) {
+  const progress = target > 0 ? clamp(value / target * 100, 0, 100) : 0;
+  const status = analyticsGoalStatus(type, value, target, "г");
+  return `<div class="day-macro-item">
+    <div class="day-macro-head"><span>${label}</span><b>${round(value)} / ${targetValue(target, "г")}</b></div>
+    <div class="progress" style="--value:${progress}%"><i></i></div>
+    <p class="analytics-status ${status.tone}">${status.text}</p>
+  </div>`;
 }
 
 function analyticsWaterCard() {
@@ -3638,15 +3788,19 @@ function productMacroStrip(product) {
 function addRationAmountsPage() {
   const items = selectedMealItems();
   const complete = items.length && items.every(({ amount }) => number(amount, 0) > 0);
+  const editing = Boolean(entryDraft.editing);
   return `
-    ${addBackHeader("Количество", "ration")}
+    ${editing ? `<header class="screen-header add-subpage-head">
+      <button class="back-link" type="button" data-action="cancel-entry-edit">← Назад</button>
+      <h1>Количество</h1>
+    </header>` : addBackHeader("Количество", "ration")}
     <form class="add-meal-flow" data-form="entry">
       <input type="hidden" name="meal" value="${entryDraft.meal}">
-      ${amountMealPicker()}
+      ${editing ? "" : amountMealPicker()}
       <div class="product-choice-list">
         ${items.length ? items.map(rationAmountCard).join("") : `<div class="empty-line">Выберите продукты</div>`}
       </div>
-      <button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="submit" ${complete ? "" : "disabled"}>${mealButtonLabel(entryDraft.meal)}</button>
+      <button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="submit" ${complete ? "" : "disabled"}>${editing ? "Сохранить изменения" : mealButtonLabel(entryDraft.meal)}</button>
     </form>`;
 }
 
@@ -4109,8 +4263,13 @@ function dishBuilderPanel() {
 
 function dishSearchResult(entry) {
   const product = entry.product;
-  const label = "Мои продукты";
-  return `<button class="dish-search-result" type="button" data-add-builder-product="${product.id}">
+  const label = product.kind === "eighty"
+    ? product.categoryLabel
+    : product.kind === "dish" ? "Блюдо" : "Продукт";
+  const action = product.kind === "eighty"
+    ? `data-add-builder-eighty="${product.id}"`
+    : `data-add-builder-product="${product.id}"`;
+  return `<button class="dish-search-result" type="button" ${action}>
     <span><strong>${escapeHtml(product.name)}</strong><em>${label}</em></span>
     <b>${round(product.calories)} ккал</b>
   </button>`;
@@ -4118,19 +4277,26 @@ function dishSearchResult(entry) {
 
 function dishIngredientLibraryItems() {
   const query = (ingredientPicker.query || "").trim().toLowerCase();
-  if (ingredientPicker.source === "eighty") {
-    if (!ingredientPicker.categoryId && !query) return [];
-    return userEightyFoods()
-      .filter((food) => !ingredientPicker.categoryId || food.categoryId === ingredientPicker.categoryId)
-      .filter((food) => !query || food.name.toLowerCase().includes(query));
+  const personal = addMealItems();
+  if (query) {
+    const personalMatches = personal.filter((item) => item.name.toLowerCase().includes(query));
+    const eightyMatches = userEightyFoods()
+      .filter((food) => food.name.toLowerCase().includes(query))
+      .map(eightyAddMealItem);
+    return [...personalMatches, ...eightyMatches];
   }
-  return addMealItems()
-    .filter((item) => !query || item.name.toLowerCase().includes(query));
+  if (ingredientPicker.source === "eighty" && ingredientPicker.categoryId) {
+    return userEightyFoods()
+      .filter((food) => food.categoryId === ingredientPicker.categoryId)
+      .map(eightyAddMealItem);
+  }
+  if (ingredientPicker.source === "eighty") return [];
+  return personal;
 }
 
 function selectedIngredientPickerItems() {
   return Object.keys(ingredientPicker.items || {})
-    .map((id) => ingredientPicker.source === "eighty" ? eightyFoodById(id) : addMealItemById(id))
+    .map((id) => addMealItemById(id))
     .filter(Boolean);
 }
 
@@ -4138,33 +4304,37 @@ function dishIngredientLibraryPage() {
   const items = dishIngredientLibraryItems();
   const selectedCount = selectedIngredientPickerItems().length;
   const category = eightyFoodCategories.find((item) => item.id === ingredientPicker.categoryId);
+  const catalogOpen = ingredientPicker.source === "eighty" && !ingredientPicker.query.trim();
   return `
     ${addBackHeader("Выберите ингредиенты", "dish")}
     <div class="add-meal-flow">
-      <div class="segmented food-source-segments">
-        <button class="${ingredientPicker.source === "mine" ? "active" : ""}" type="button" data-ingredient-source="mine">Мои продукты</button>
-        <button class="${ingredientPicker.source === "eighty" ? "active" : ""}" type="button" data-ingredient-source="eighty">📚 База Eighty</button>
-      </div>
-      ${ingredientPicker.source === "eighty" && !ingredientPicker.categoryId && !ingredientPicker.query.trim() ? `<div class="eighty-category-list">
+      ${ingredientSearchToolsRow()}
+      ${catalogOpen && !ingredientPicker.categoryId ? `<div class="eighty-category-list">
         ${eightyFoodCategories.map((item) => `<button class="eighty-category-card" type="button" data-ingredient-category="${item.id}">
           <span>${item.icon}</span>
           <strong>${item.label}</strong>
         </button>`).join("")}
       </div>` : ""}
-      ${ingredientPicker.source === "eighty" && category ? `<button class="secondary-btn compact-back" type="button" data-ingredient-category="">← ${category.label}</button>` : ""}
-      <input class="search-input" data-ingredient-picker-query value="${escapeHtml(ingredientPicker.query || "")}" placeholder="Поиск">
-      ${ingredientPicker.source === "mine" || ingredientPicker.categoryId || ingredientPicker.query.trim() ? `<div class="product-choice-list">
+      ${catalogOpen && category ? `<button class="secondary-btn compact-back" type="button" data-ingredient-category="">← ${category.label}</button>` : ""}
+      ${!catalogOpen || ingredientPicker.categoryId ? `<div class="product-choice-list">
         ${items.length
           ? items.map(ingredientPickerCard).join("")
-          : `<div class="big-empty compact-empty"><div><strong>Ничего не найдено</strong><span>${ingredientPicker.source === "eighty" ? "Выберите категорию или измените поиск." : "Здесь отображаются только ваши продукты и блюда."}</span></div></div>`}
+          : `<div class="big-empty compact-empty"><div><strong>Ничего не найдено</strong><span>Попробуйте изменить запрос или открыть каталог Eighty.</span></div></div>`}
       </div>` : ""}
       ${selectedCount ? `<button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="button" data-action="ingredient-picker-next">Добавить (${selectedCount})</button>` : ""}
     </div>`;
 }
 
+function ingredientSearchToolsRow() {
+  return `<div class="dish-search-row product-search-tools ingredient-search-tools">
+    <input class="search-input" data-ingredient-picker-query value="${escapeHtml(ingredientPicker.query || "")}" placeholder="Поиск продуктов и блюд">
+    <button class="icon-btn library-open-btn" type="button" data-action="open-ingredient-catalog" title="База Eighty" aria-label="База Eighty">📚</button>
+  </div>`;
+}
+
 function ingredientPickerCard(item) {
   const selected = Object.prototype.hasOwnProperty.call(ingredientPicker.items, item.id);
-  const label = ingredientPicker.source === "eighty"
+  const label = item.kind === "eighty"
     ? `${item.categoryLabel}`
     : item.kind === "dish" ? "Блюдо" : "Продукт";
   return `<article class="product-choice ration-choice ${selected ? "selected" : ""}">
@@ -4546,6 +4716,7 @@ function screenProfile(targets) {
   const telegramId = state.telegram.telegramId || currentUser.telegramId || "—";
   if (weightHistoryOpen) return screenWeightHistory();
   if (remindersOpen) return screenReminders();
+  if (themeSettingsOpen) return screenThemeSettings();
   return `<section class="${screenStateClass("profile")}">
     <div class="stack">
       <header class="screen-header profile-title">
@@ -4584,6 +4755,7 @@ function profileCard(targets) {
   const remaining = current > 0 && target > 0 ? Math.abs(current - target) : 0;
   const reached = targetReached();
   return `<div class="profile-card">
+    ${profileThemeToggle()}
     <div class="profile-main">
       <div class="avatar">${photo ? `<img src="${escapeHtml(photo)}" alt="">` : `<span>${escapeHtml(name.slice(0, 1).toUpperCase())}</span>`}</div>
       <div>
@@ -4599,6 +4771,27 @@ function profileCard(targets) {
       ${smallStat("Цель", target > 0 ? `${round(target, 1)} кг` : "—")}
       ${smallStat("Осталось", reached ? "🎉 Цель достигнута" : remaining > 0 ? `${round(remaining, 1)} кг` : "—")}
     </div>
+  </div>`;
+}
+
+function profileThemeToggle() {
+  const mode = state.settings.themeMode || "system";
+  const theme = resolvedTheme(mode);
+  const options = [
+    ["light", "☀️", "Светлая"],
+    ["dark", "🌙", "Тёмная"],
+    ["system", "📱", "Системная"]
+  ];
+  return `<div class="profile-theme-root" data-theme-menu-root>
+    <button class="theme-toggle ${theme === "dark" ? "dark" : "light"}" type="button" data-action="toggle-theme-menu" aria-label="Тема оформления" aria-expanded="${themeMenuOpen}">
+      <span class="theme-toggle-orbit"><i></i></span>
+      <b>${mode === "system" ? "A" : ""}</b>
+    </button>
+    ${themeMenuOpen ? `<div class="theme-menu">
+      ${options.map(([id, icon, title]) => `<button class="${mode === id ? "active" : ""}" type="button" data-theme-mode="${id}">
+        <span>${icon}</span><strong>${title}</strong>${mode === id ? "<b>✓</b>" : ""}
+      </button>`).join("")}
+    </div>` : ""}
   </div>`;
 }
 
@@ -4743,6 +4936,45 @@ function screenReminders() {
           "Отправляется только если к выбранному времени дневная цель по питанию ещё не выполнена."
         )}
       </div>
+    </div>
+  </section>`;
+}
+
+function themeModeLabel(mode = state.settings.themeMode) {
+  return ({
+    light: "Светлая",
+    dark: "Тёмная",
+    system: "Системная"
+  })[mode] || "Системная";
+}
+
+function screenThemeSettings() {
+  const current = state.settings.themeMode || "system";
+  const options = [
+    ["light", "☀️", "Светлая", "Текущий светлый дизайн Eighty."],
+    ["dark", "🌙", "Тёмная", "Мягкая тёмная палитра с зелёным акцентом."],
+    ["system", "📱", "Системная", "Автоматически следует теме устройства."]
+  ];
+  return `<section class="${screenStateClass("profile")}">
+    <div class="stack">
+      <header class="screen-header profile-title weight-page-title">
+        <button class="back-link" type="button" data-action="close-theme-settings">← Назад</button>
+        <span>ВНЕШНИЙ ВИД</span>
+        <h1>Тема оформления</h1>
+      </header>
+      <section class="panel theme-settings-panel">
+        <div class="section-title">
+          <h2>🎨 Тема</h2>
+          <span>${themeModeLabel(current)}</span>
+        </div>
+        <div class="theme-option-list">
+          ${options.map(([id, icon, title, description]) => `<button class="theme-option ${current === id ? "active" : ""}" type="button" data-theme-mode="${id}" aria-pressed="${current === id}">
+            <i>${icon}</i>
+            <span><strong>${title}</strong><em>${description}</em></span>
+            <b>${current === id ? "✓" : ""}</b>
+          </button>`).join("")}
+        </div>
+      </section>
     </div>
   </section>`;
 }
@@ -5135,6 +5367,11 @@ app.addEventListener("click", async (event) => {
     render();
     return;
   }
+  if (themeMenuOpen && !event.target.closest("[data-theme-menu-root]")) {
+    themeMenuOpen = false;
+    render();
+    return;
+  }
   if (addCreateMenuOpen && !event.target.closest("[data-create-menu-root]")) {
     addCreateMenuOpen = false;
     render();
@@ -5336,6 +5573,27 @@ app.addEventListener("click", async (event) => {
     remindersOpen = false;
     render();
   }
+  if (button.dataset.action === "theme-settings") {
+    themeSettingsOpen = true;
+    render();
+  }
+  if (button.dataset.action === "close-theme-settings") {
+    themeSettingsOpen = false;
+    render();
+  }
+  if (button.dataset.action === "toggle-theme-menu") {
+    themeMenuOpen = !themeMenuOpen;
+    render();
+    return;
+  }
+  if (button.dataset.themeMode) {
+    state.settings.themeMode = button.dataset.themeMode;
+    themeMenuOpen = false;
+    applyTheme(state.settings.themeMode);
+    persist();
+    render();
+    return;
+  }
   if (button.dataset.reminderToggle) {
     toggleReminderSetting(button.dataset.reminderToggle);
     return;
@@ -5387,6 +5645,7 @@ app.addEventListener("click", async (event) => {
   }
   if (button.dataset.openAdd) openAdd(button.dataset.openAdd);
   if (button.dataset.water) addWater(number(button.dataset.water));
+  if (button.dataset.editEntry) openEntryEditor(button.dataset.editEntry);
   if (button.dataset.deleteEntry) deleteEntry(button.dataset.deleteEntry);
   if (button.dataset.deleteProduct) deleteProduct(button.dataset.deleteProduct);
   if (button.dataset.deleteWeight) deleteWeight(button.dataset.deleteWeight);
@@ -5426,6 +5685,10 @@ app.addEventListener("click", async (event) => {
     addPage = "ration-amounts";
     render();
   }
+  if (button.dataset.action === "cancel-entry-edit") {
+    cancelEntryEdit();
+    return;
+  }
   if (button.dataset.openEightyCategory) {
     eightyCategoryId = button.dataset.openEightyCategory;
     eightyImport.query = "";
@@ -5451,18 +5714,19 @@ app.addEventListener("click", async (event) => {
   if (button.dataset.action === "open-ingredient-library") {
     const form = button.closest('form[data-form="dish-create"]');
     if (form) syncDishBuilderFromForm(form);
-    ingredientPicker = { source: "mine", query: "", categoryId: "", items: {} };
+    ingredientPicker = { source: "all", query: ensureDishBuilder().query || "", categoryId: "", items: {} };
     addPage = "dish-library";
     render();
   }
-  if (button.dataset.ingredientSource) {
-    ingredientPicker.source = button.dataset.ingredientSource;
+  if (button.dataset.action === "open-ingredient-catalog") {
+    ingredientPicker.source = "eighty";
     ingredientPicker.query = "";
     ingredientPicker.categoryId = "";
-    ingredientPicker.items = {};
     render();
+    return;
   }
   if (button.dataset.ingredientCategory !== undefined) {
+    ingredientPicker.source = "eighty";
     ingredientPicker.categoryId = button.dataset.ingredientCategory;
     ingredientPicker.query = "";
     render();
@@ -5481,7 +5745,7 @@ app.addEventListener("click", async (event) => {
   if (button.dataset.addBuilderProduct) {
     const form = button.closest('form[data-form="dish-create"]');
     if (form) syncDishBuilderFromForm(form);
-    const product = productById(button.dataset.addBuilderProduct);
+    const product = addMealItemById(button.dataset.addBuilderProduct);
     if (product) addIngredientToBuilder(product);
     render();
   }
@@ -5691,6 +5955,8 @@ app.addEventListener("input", (event) => {
   }
   if (target.matches("[data-ingredient-picker-query]")) {
     ingredientPicker.query = target.value;
+    ingredientPicker.source = "all";
+    ingredientPicker.categoryId = "";
     const cursor = target.selectionStart;
     render();
     const nextSearch = app.querySelector("[data-ingredient-picker-query]");

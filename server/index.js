@@ -461,6 +461,7 @@ function createDefaultState(user) {
       waterEnabled: true,
       waterManual: false,
       waterGoal: 2200,
+      themeMode: "system",
       reminders: defaultReminderSettings()
     },
     products: [],
