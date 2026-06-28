@@ -179,6 +179,7 @@ const developerAdminTelegramId = "769422448";
 let state = null;
 let currentUser = { id: "demo-user", telegramId: "", name: "Пользователь", photoUrl: "" };
 let activeScreen = "diary";
+let energyRingMode = "remaining";
 let tabIndicatorFromScreen = null;
 let screenTransition = null;
 let screenTransitionTimer = null;
@@ -2936,7 +2937,7 @@ function daySwipeStart(event) {
   if (!daySwipeEnabled(activeScreen)) return;
   const target = event.target instanceof Element ? event.target : event.target?.parentElement;
   if (!target) return;
-  if (target.closest("button, input, textarea, select, a, label, [role='dialog'], .modal-backdrop")) return;
+  if (target.closest("button, input, textarea, select, a, label, [role='button'], [role='dialog'], .modal-backdrop")) return;
   const node = target.closest(".screen.active.day-swipe-surface");
   if (!node) return;
   daySwipe = {
@@ -3000,7 +3001,6 @@ function screenDiary(targets, consumed) {
       </header>
       ${diaryDayHeader()}
       ${dayCard()}
-      ${activitySummaryCard()}
       ${energyCard(targets, consumed, remaining, calorieProgress)}
       ${mealsSection()}
       ${waterSection()}
@@ -3015,15 +3015,9 @@ function diaryDayHeader() {
     <div class="hello-card">Привет, ${escapeHtml(state.profile.name || currentUser.name || "Пользователь")}!</div>
     <div class="day-actions">
       <button class="icon-btn" data-action="prev-date" title="Предыдущий день" ${hasPrevious ? "" : "disabled"}>${icons.prev}</button>
+      <button class="icon-btn" data-action="achievements" title="Достижения" aria-label="Достижения">🏆</button>
       <button class="icon-btn" data-action="next-date" title="Следующий день" ${hasNext ? "" : "disabled"}>${icons.next}</button>
     </div>
-  </div>`;
-}
-
-function activitySummaryCard() {
-  return `<div class="activity-summary">
-    <div><span>🔥 Серия</span><strong>${round(state.stats.currentStreak)} дней подряд</strong></div>
-    <button class="activity-achievements" type="button" data-action="earned-achievements"><span>🏆 Достижения</span><strong>${earnedAchievementCount()} получено</strong></button>
   </div>`;
 }
 
@@ -3041,24 +3035,30 @@ function dayCard() {
 }
 
 function energyCard(targets, consumed, remaining, progress) {
-  const goalText = targets.complete ? `Суточная цель — ${round(targets.calories)} ккал` : "Заполните профиль для расчёта цели";
-  return `<div class="energy-card">
+  const ringShowsConsumed = energyRingMode === "consumed";
+  const ringValue = ringShowsConsumed ? consumed.calories : remaining;
+  const ringLabel = ringShowsConsumed ? "Съедено" : "Осталось";
+  const streakActiveToday = (state.diary[todayIso()] || []).length > 0;
+  return `<div class="energy-card" data-action="toggle-energy-ring" role="button" tabindex="0" aria-label="Переключить отображение калорий">
+    <span class="energy-streak-indicator ${streakActiveToday ? "active" : ""}"><i>🔥</i> ${round(state.stats.currentStreak)} дн.</span>
     <div class="energy-ring" style="--progress:${progress}">
       <div>
-        <strong>${round(remaining)}</strong>
-        <span>ккал осталось</span>
+        <span class="energy-ring-label">${ringLabel}</span>
+        <strong>${round(ringValue)}</strong>
+        <span class="energy-ring-unit">ккал</span>
       </div>
     </div>
     <div class="energy-info">
-      <h2>ЭНЕРГИЯ</h2>
-      <p>съедено калорий</p>
-      <strong>${round(consumed.calories)} ккал</strong>
-      <p>${goalText}</p>
       ${macroLine("Белки", consumed.protein, targets.protein, "protein")}
       ${macroLine("Жиры", consumed.fat, targets.fat, "fat")}
       ${macroLine("Углеводы", consumed.carbs, targets.carbs, "carbs")}
     </div>
   </div>`;
+}
+
+function toggleEnergyRingMode() {
+  energyRingMode = energyRingMode === "consumed" ? "remaining" : "consumed";
+  render();
 }
 
 function macroLine(label, value, target, kind) {
@@ -4920,7 +4920,7 @@ function profileThemeToggle() {
     ["system", "📱", "Системная"]
   ];
   return `<div class="profile-theme-root" data-theme-menu-root>
-    <button class="theme-toggle ${theme === "dark" ? "dark" : "light"}" type="button" data-action="toggle-theme-menu" aria-label="Тема оформления" aria-expanded="${themeMenuOpen}">
+    <button class="theme-toggle ${theme === "dark" ? "dark" : "light"}" type="button" data-action="toggle-theme-mode" aria-label="Тема оформления">
       <span class="theme-toggle-orbit"><i></i></span>
       <b>${mode === "system" ? "A" : ""}</b>
     </button>
@@ -5659,6 +5659,11 @@ app.addEventListener("click", async (event) => {
     render();
     return;
   }
+  const energyToggle = event.target.closest('[data-action="toggle-energy-ring"]');
+  if (energyToggle) {
+    toggleEnergyRingMode();
+    return;
+  }
   const button = event.target.closest("button");
   if (!button) return;
   if (accountDeleteBusy) return;
@@ -5887,8 +5892,14 @@ app.addEventListener("click", async (event) => {
     runDeveloperAction(button.dataset.developerAction);
     return;
   }
-  if (button.dataset.action === "toggle-theme-menu") {
-    themeMenuOpen = !themeMenuOpen;
+  if (button.dataset.action === "toggle-theme-mode") {
+    const order = ["light", "dark", "system"];
+    const current = state.settings.themeMode || "system";
+    const next = order[(order.indexOf(current) + 1) % order.length] || "light";
+    state.settings.themeMode = next;
+    themeMenuOpen = false;
+    applyTheme(next);
+    persist();
     render();
     return;
   }
@@ -6149,6 +6160,14 @@ app.addEventListener("click", async (event) => {
     favoritesSort = button.dataset.favoritesSort;
     render();
   }
+});
+
+app.addEventListener("keydown", (event) => {
+  if (event.key !== "Enter" && event.key !== " ") return;
+  const target = event.target instanceof Element ? event.target : null;
+  if (!target?.matches('[data-action="toggle-energy-ring"]')) return;
+  event.preventDefault();
+  toggleEnergyRingMode();
 });
 
 app.addEventListener("change", (event) => {

@@ -79,6 +79,7 @@ html {
   text-size-adjust: 100%;
   touch-action: manipulation;
   scrollbar-gutter: stable both-edges;
+  transition: background-color 0.26s var(--ease-out), color 0.26s var(--ease-out);
 }
 
 body {
@@ -114,23 +115,28 @@ body.modal-open {
 }
 
 body,
+.app-shell,
 .panel,
 .modal-card,
+.day-card,
 .stat-card,
 .meal-card,
 .water-card,
 .product-choice,
 .profile-card,
+.energy-card,
+.energy-ring,
+.energy-ring::before,
 .tabs,
 .toast,
 input,
 select,
 button {
   transition:
-    background-color 0.18s var(--ease-out),
-    color 0.18s var(--ease-out),
-    border-color 0.18s var(--ease-out),
-    box-shadow 0.18s var(--ease-out);
+    background-color 0.26s var(--ease-out),
+    color 0.26s var(--ease-out),
+    border-color 0.26s var(--ease-out),
+    box-shadow 0.26s var(--ease-out);
 }
 
 button,
@@ -681,43 +687,10 @@ button:disabled {
   text-transform: uppercase;
 }
 
-.activity-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--spacing-sm);
-}
-
-.activity-summary > div,
-.activity-achievements {
-  display: grid;
-  gap: var(--spacing-xs);
-  min-width: 0;
-  padding: var(--card-padding);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel);
-  color: var(--ink);
-  box-shadow: var(--shadow);
-  text-align: left;
-}
-
-.activity-summary span,
-.activity-achievements span {
-  color: var(--muted);
-  font-size: var(--font-small);
-  font-weight: 850;
-}
-
-.activity-summary strong,
-.activity-achievements strong {
-  font-size: 18px;
-  line-height: 1.05;
-  font-weight: 950;
-}
-
 .energy-card {
+  position: relative;
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   align-items: center;
   gap: var(--spacing-lg);
   padding: var(--card-padding-lg);
@@ -725,25 +698,32 @@ button:disabled {
   background: var(--green-deep);
   color: #fff;
   box-shadow: 0 22px 46px rgba(7, 27, 18, 0.22);
+  cursor: pointer;
 }
 
 .energy-ring {
   --progress: 0;
   position: relative;
-  width: 166px;
-  height: 166px;
+  justify-self: center;
+  width: min(156px, 100%);
+  aspect-ratio: 1;
   display: grid;
   place-items: center;
   border-radius: 50%;
   background: conic-gradient(var(--green) calc(var(--progress) * 1%), rgba(255, 255, 255, 0.13) 0);
-  transition: background 0.26s var(--ease-out);
+  color: inherit;
+  transition: background 0.26s var(--ease-out), transform 0.18s var(--ease-out);
+}
+
+.energy-card:active .energy-ring {
+  transform: scale(0.985);
 }
 
 .energy-ring::before {
   content: "";
   position: absolute;
-  width: 122px;
-  height: 122px;
+  width: 74%;
+  height: 74%;
   border-radius: inherit;
   background: var(--green-deep);
 }
@@ -753,6 +733,19 @@ button:disabled {
   z-index: 1;
   display: grid;
   text-align: center;
+  animation: energyRingValue 0.22s var(--ease-out) both;
+}
+
+@keyframes energyRingValue {
+  from {
+    opacity: 0.6;
+    transform: translateY(3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .energy-ring strong {
@@ -762,32 +755,54 @@ button:disabled {
 }
 
 .energy-ring span {
-  margin-top: 5px;
   color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
   line-height: 1.05;
   font-weight: 750;
-  transform: translateY(-3px);
 }
 
-.energy-info h2 {
-  margin: 0 0 var(--spacing-sm);
-  font-size: var(--font-small);
-  font-weight: 950;
-  letter-spacing: 0;
+.energy-ring-label {
+  margin-bottom: 5px;
+  font-size: 13px;
 }
 
-.energy-info p {
-  margin: 0 0 var(--spacing-xs);
-  color: rgba(255, 255, 255, 0.66);
-  font-size: var(--font-small);
+.energy-ring-unit {
+  margin-top: 5px;
+  font-size: 12px;
 }
 
-.energy-info > strong {
-  display: block;
-  margin-bottom: 8px;
-  font-size: 25px;
-  font-weight: 950;
+.energy-streak-indicator {
+  position: absolute;
+  top: var(--spacing-md);
+  right: var(--spacing-md);
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #fff;
+  font-size: var(--font-caption);
+  line-height: 1;
+  font-weight: 720;
+}
+
+.energy-streak-indicator i {
+  font-style: normal;
+  filter: grayscale(1);
+  opacity: 0.58;
+  transition: filter 0.22s var(--ease-out), opacity 0.22s var(--ease-out);
+}
+
+.energy-streak-indicator.active i {
+  filter: none;
+  opacity: 1;
+}
+
+.energy-info {
+  display: grid;
+  align-self: center;
+}
+
+.energy-info .macro-line:first-child {
+  margin-top: 0;
 }
 
 .section-block {
@@ -1571,7 +1586,6 @@ button:disabled {
 }
 
 .energy-ring strong,
-.energy-info > strong,
 .macro-line b,
 .water-card strong,
 .water-complete strong,
@@ -3297,10 +3311,11 @@ button:disabled {
 }
 
 .achievements-modal {
-  max-height: min(88vh, 760px);
+  height: auto;
+  max-height: min(88dvh, 760px);
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, auto);
   padding: 0;
 }
 
@@ -3321,6 +3336,7 @@ button:disabled {
 
 .achievements-modal-body {
   min-height: 0;
+  max-height: min(68dvh, 620px);
   overflow: auto;
   display: grid;
   gap: 18px;
@@ -4737,9 +4753,9 @@ button:disabled {
   }
 
   .energy-card {
-    grid-template-columns: 148px minmax(0, 1fr);
-    gap: 16px;
-    padding: 18px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--spacing-md);
+    padding: var(--card-padding-lg);
   }
 
   .energy-info {
@@ -4747,18 +4763,20 @@ button:disabled {
   }
 
   .energy-ring {
-    width: 142px;
-    height: 142px;
+    width: min(138px, 100%);
   }
 
   .energy-ring::before {
-    width: 104px;
-    height: 104px;
+    width: 74%;
+    height: 74%;
   }
 
-  .energy-ring span {
+  .energy-ring-label {
     font-size: 12px;
-    transform: translateY(-4px);
+  }
+
+  .energy-ring-unit {
+    font-size: 11px;
   }
 
   .meal-segments {
@@ -4870,43 +4888,33 @@ button:disabled {
   }
 
   .energy-card {
-    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 10px;
     padding: 14px;
     border-radius: 24px;
   }
 
   .energy-ring {
-    width: 108px;
-    height: 108px;
+    width: min(126px, 100%);
   }
 
   .energy-ring::before {
-    width: 80px;
-    height: 80px;
+    width: 74%;
+    height: 74%;
   }
 
   .energy-ring strong {
     font-size: 24px;
   }
 
-  .energy-info p {
-    font-size: 11px;
-  }
-
-  .energy-ring span {
+  .energy-ring-label {
+    margin-bottom: 4px;
     font-size: 10px;
-    transform: translateY(-5px);
   }
 
-  .energy-info h2 {
-    margin-bottom: 8px;
-    font-size: 12px;
-  }
-
-  .energy-info > strong {
-    margin-bottom: 5px;
-    font-size: 20px;
+  .energy-ring-unit {
+    margin-top: 4px;
+    font-size: 10px;
   }
 
   .macro-line {
@@ -5222,15 +5230,8 @@ body {
   font-weight: 760;
 }
 
-.activity-summary strong,
-.activity-achievements strong {
-  font-size: 15px;
-  font-weight: 720;
-}
-
 .section-block > h2,
 .section-title h2,
-.energy-info h2,
 .water-title h2 {
   font-size: var(--font-caption);
   line-height: 1.15;
@@ -5320,10 +5321,8 @@ body {
 .target-choice-field > label,
 .developer-status,
 .developer-log-row time,
-.day-card span,
-.day-card b,
-.activity-summary span,
-.activity-achievements span,
+  .day-card span,
+  .day-card b,
 .library-card-main .library-card-meta,
 .template-card-main em,
 .template-source-card em {
