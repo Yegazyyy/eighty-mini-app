@@ -3878,6 +3878,150 @@ button:disabled {
   text-align: center;
 }
 
+.profile-version-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.developer-open-btn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.developer-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.developer-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.developer-card h2 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.15;
+  font-weight: 950;
+}
+
+.developer-row-list {
+  display: grid;
+  gap: 8px;
+}
+
+.developer-row {
+  min-height: 38px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: var(--soft);
+}
+
+.developer-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.developer-row strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 950;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.developer-status {
+  color: var(--muted);
+}
+
+.developer-status.ok {
+  color: #128247;
+}
+
+.developer-status.error {
+  color: var(--danger);
+}
+
+.developer-actions {
+  display: grid;
+  gap: 8px;
+}
+
+.developer-actions.grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.developer-result,
+.developer-loading {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: var(--soft);
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.developer-result span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.developer-result.ok {
+  background: var(--green-soft);
+  color: #128247;
+}
+
+.developer-result.error {
+  color: var(--danger);
+}
+
+.developer-log-list {
+  max-height: 360px;
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.developer-log-row {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: var(--soft);
+}
+
+.developer-log-row span,
+.developer-log-row em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+}
+
+.developer-log-row strong {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 950;
+}
+
 .check-row {
   display: flex;
   align-items: center;
@@ -5118,6 +5262,23 @@ button:disabled {
 :root[data-theme="dark"] .period-entry-card {
   background: rgba(255, 255, 255, 0.08);
   color: var(--ink);
+}
+
+:root[data-theme="dark"] .developer-open-btn,
+:root[data-theme="dark"] .developer-row,
+:root[data-theme="dark"] .developer-log-row,
+:root[data-theme="dark"] .developer-result,
+:root[data-theme="dark"] .developer-loading {
+  background: #1a221e;
+}
+
+:root[data-theme="dark"] .developer-status.ok,
+:root[data-theme="dark"] .developer-result.ok {
+  color: #8cf2ad;
+}
+
+:root[data-theme="dark"] .developer-result.ok {
+  background: rgba(37, 211, 102, 0.14);
 }
 
 :root[data-theme="dark"] .segmented {

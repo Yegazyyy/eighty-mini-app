@@ -155,6 +155,9 @@ const icons = {
   trash: `<span class="delete-minus" aria-hidden="true">−</span>`
 };
 
+const appVersion = "2.3.0";
+const developerAdminTelegramId = "769422448";
+
 let state = null;
 let currentUser = { id: "demo-user", telegramId: "", name: "Пользователь", photoUrl: "" };
 let activeScreen = "diary";
@@ -205,6 +208,11 @@ let nutritionInfoOpen = false;
 let remindersOpen = false;
 let themeSettingsOpen = false;
 let themeMenuOpen = false;
+let developerModeOpen = false;
+let developerData = null;
+let developerLoading = false;
+let developerError = "";
+let developerResult = null;
 let weightHistoryOpen = false;
 let weightEditor = null;
 let accountDeleteOpen = false;
@@ -369,6 +377,64 @@ function apiUrl(path) {
     }
   }
   return url;
+}
+
+function isDeveloperAdmin() {
+  return String(currentUser.telegramId || state?.telegram?.telegramId || "") === developerAdminTelegramId;
+}
+
+async function developerRequest(path, options = {}) {
+  const initData = tg?.initData || "";
+  const headers = {
+    ...(options.headers || {}),
+    ...(initData ? { "X-Telegram-Init-Data": initData } : {})
+  };
+  const response = await fetch(apiUrl(path), {
+    ...options,
+    headers
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `HTTP ${response.status}`);
+  return payload;
+}
+
+async function loadDeveloperMode() {
+  if (!isDeveloperAdmin()) return;
+  developerModeOpen = true;
+  developerLoading = true;
+  developerError = "";
+  render();
+  try {
+    developerData = await developerRequest("/api/developer/status");
+  } catch (error) {
+    developerError = error.message;
+  } finally {
+    developerLoading = false;
+    render();
+  }
+}
+
+async function runDeveloperAction(action) {
+  if (!isDeveloperAdmin() || developerLoading) return;
+  developerLoading = true;
+  developerError = "";
+  developerResult = null;
+  render();
+  try {
+    const payload = await developerRequest("/api/developer/action", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action })
+    });
+    developerResult = { action, ...(payload.result || {}) };
+    developerData = payload.snapshot || developerData;
+  } catch (error) {
+    developerError = error.message;
+    developerResult = { action, ok: false, error: error.message };
+  } finally {
+    developerLoading = false;
+    render();
+  }
 }
 
 function mergeState(serverState, localState) {
@@ -1385,6 +1451,7 @@ function closeModal(name) {
   if (!name || name === "reminders") remindersOpen = false;
   if (!name || name === "theme-settings") themeSettingsOpen = false;
   if (!name || name === "theme-menu") themeMenuOpen = false;
+  if (!name || name === "developer") developerModeOpen = false;
   if (!name || name === "eighty-food") eightyFoodDialog = null;
   if (!name || name === "meal-template") mealTemplateEditor = null;
   if (!name || name === "library-editor") libraryEditor = null;
@@ -1673,6 +1740,11 @@ function resetTransientUiState() {
   remindersOpen = false;
   themeSettingsOpen = false;
   themeMenuOpen = false;
+  developerModeOpen = false;
+  developerData = null;
+  developerLoading = false;
+  developerError = "";
+  developerResult = null;
   weightHistoryOpen = false;
   weightEditor = null;
   accountDeleteOpen = false;
@@ -4717,6 +4789,7 @@ function screenProfile(targets) {
   if (weightHistoryOpen) return screenWeightHistory();
   if (remindersOpen) return screenReminders();
   if (themeSettingsOpen) return screenThemeSettings();
+  if (developerModeOpen) return screenDeveloperMode();
   return `<section class="${screenStateClass("profile")}">
     <div class="stack">
       <header class="screen-header profile-title">
@@ -4737,7 +4810,10 @@ function screenProfile(targets) {
       ${profileWaterPanel()}
       ${accountDeletePanel()}
       <div class="profile-app-info">
-        <span>Eighty v2.3.0</span>
+        <div class="profile-version-row">
+          <span>Eighty v${appVersion}</span>
+          ${isDeveloperAdmin() ? `<button class="developer-open-btn" type="button" data-action="developer-mode" title="Developer Mode" aria-label="Developer Mode">🛠</button>` : ""}
+        </div>
         <span>© 2026 by Егор Галкин</span>
       </div>
     </div>
@@ -4974,6 +5050,134 @@ function screenThemeSettings() {
             <b>${current === id ? "✓" : ""}</b>
           </button>`).join("")}
         </div>
+      </section>
+    </div>
+  </section>`;
+}
+
+function developerDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function developerDuration(seconds = 0) {
+  const total = Math.max(0, Math.floor(number(seconds)));
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor(total % 86400 / 3600);
+  const minutes = Math.floor(total % 3600 / 60);
+  if (days) return `${days} д ${hours} ч`;
+  if (hours) return `${hours} ч ${minutes} мин`;
+  return `${minutes} мин`;
+}
+
+function developerStatus(ok, success = "Подключён", fail = "Ошибка") {
+  return `<span class="developer-status ${ok ? "ok" : "error"}">${ok ? "🟢" : "🔴"} ${ok ? success : fail}</span>`;
+}
+
+function developerRows(rows) {
+  return rows.map(([label, value]) => `<div class="developer-row"><span>${escapeHtml(label)}</span><strong>${value}</strong></div>`).join("");
+}
+
+function developerCard(title, rows, extra = "") {
+  return `<section class="panel developer-card">
+    <h2>${title}</h2>
+    <div class="developer-row-list">${developerRows(rows)}</div>
+    ${extra}
+  </section>`;
+}
+
+function developerActionButton(action, label) {
+  return `<button class="secondary-btn" type="button" data-developer-action="${action}" ${developerLoading ? "disabled" : ""}>${label}</button>`;
+}
+
+function developerResultView() {
+  if (!developerResult) return "";
+  const ok = Boolean(developerResult.ok);
+  const text = developerResult.message || developerResult.error || (ok ? "Успешно" : "Ошибка");
+  return `<div class="developer-result ${ok ? "ok" : "error"}">${ok ? "🟢 Успешно" : "🔴 Ошибка"}<span>${escapeHtml(text)}</span></div>`;
+}
+
+function developerLogs(logs = []) {
+  if (!logs.length) return `<div class="empty-line">Логов пока нет</div>`;
+  return `<div class="developer-log-list">
+    ${logs.slice(0, 100).map((item) => `<div class="developer-log-row">
+      <span>${developerDate(item.at)}</span>
+      <strong>${escapeHtml(item.message || item.type || "Событие")}</strong>
+      <em>${escapeHtml(item.type || "")}</em>
+    </div>`).join("")}
+  </div>`;
+}
+
+function screenDeveloperMode() {
+  const data = developerData || {};
+  const telegram = data.telegram || {};
+  const reminders = data.reminders || {};
+  const server = data.server || {};
+  const off = data.openFoodFacts || {};
+  const database = data.database || {};
+  const nextNotification = reminders.nextNotification
+    ? `${developerDate(reminders.nextNotification.at)} · ${escapeHtml(reminders.nextNotification.key)}`
+    : "—";
+
+  return `<section class="${screenStateClass("profile")}">
+    <div class="stack">
+      <header class="screen-header profile-title weight-page-title">
+        <button class="back-link" type="button" data-action="close-developer-mode">← Назад</button>
+        <span>СКРЫТЫЙ РЕЖИМ</span>
+        <h1>Developer Mode</h1>
+      </header>
+      ${developerLoading ? `<div class="developer-loading">Проверяю...</div>` : ""}
+      ${developerError ? `<div class="developer-result error">🔴 Ошибка<span>${escapeHtml(developerError)}</span></div>` : ""}
+      ${developerResultView()}
+      <div class="developer-grid">
+        ${developerCard("Telegram", [
+          ["Bot API", developerStatus(telegram.botApi === "connected")],
+          ["Telegram ID", escapeHtml(telegram.telegramId || "—")],
+          ["Последняя успешная отправка", developerDate(telegram.lastSuccessAt)],
+          ["Последняя ошибка", escapeHtml(telegram.lastError || "—")]
+        ], `<div class="developer-actions">${developerActionButton("test-notification", "🧪 Отправить тестовое уведомление")}</div>`)}
+        ${developerCard("Напоминания", [
+          ["Последняя проверка", developerDate(reminders.lastCheckAt)],
+          ["Следующая проверка", developerDate(reminders.nextCheckAt)],
+          ["Следующее уведомление", nextNotification],
+          ["Активных уведомлений", String(reminders.activeCount ?? 0)]
+        ])}
+        ${developerCard("Сервер", [
+          ["Статус", developerStatus(server.status === "ok", "Работает")],
+          ["Uptime", developerDuration(server.uptimeSeconds)],
+          ["Время сервера", developerDate(server.serverTime)],
+          ["Часовой пояс", escapeHtml(server.timezone || "—")],
+          ["Версия приложения", escapeHtml(server.version || appVersion)]
+        ])}
+        ${developerCard("Open Food Facts", [
+          ["Статус подключения", off.status === "error" ? developerStatus(false) : developerStatus(Boolean(off.lastSuccessAt), off.lastSuccessAt ? "Доступен" : "Не проверялось", "Не проверялось")],
+          ["Последний запрос", developerDate(off.lastRequestAt)],
+          ["Последняя ошибка", escapeHtml(off.lastError || "—")]
+        ], `<div class="developer-actions">${developerActionButton("open-food-facts", "🧪 Проверить API")}</div>`)}
+        ${developerCard("База данных", [
+          ["Статус", developerStatus(database.status !== "error", database.storage || "ok")],
+          ["Пользователей", String(database.users ?? 0)],
+          ["Продуктов", String(database.products ?? 0)],
+          ["Блюд", String(database.dishes ?? 0)],
+          ["Шаблонов", String(database.templates ?? 0)],
+          ["Записей дневника", String(database.diaryEntries ?? 0)]
+        ])}
+      </div>
+      <section class="panel developer-card">
+        <h2>Диагностика</h2>
+        <div class="developer-actions grid">
+          ${developerActionButton("telegram", "🧪 Проверить Telegram Bot API")}
+          ${developerActionButton("reminders", "🧪 Проверить систему уведомлений")}
+          ${developerActionButton("open-food-facts", "🧪 Проверить Open Food Facts")}
+          ${developerActionButton("database", "🧪 Проверить подключение к базе данных")}
+          ${developerActionButton("server", "🧪 Проверить сервер")}
+        </div>
+      </section>
+      <section class="panel developer-card">
+        <h2>Логи</h2>
+        ${developerLogs(data.logs || [])}
       </section>
     </div>
   </section>`;
@@ -5580,6 +5784,19 @@ app.addEventListener("click", async (event) => {
   if (button.dataset.action === "close-theme-settings") {
     themeSettingsOpen = false;
     render();
+  }
+  if (button.dataset.action === "developer-mode") {
+    loadDeveloperMode();
+    return;
+  }
+  if (button.dataset.action === "close-developer-mode") {
+    developerModeOpen = false;
+    render();
+    return;
+  }
+  if (button.dataset.developerAction) {
+    runDeveloperAction(button.dataset.developerAction);
+    return;
   }
   if (button.dataset.action === "toggle-theme-menu") {
     themeMenuOpen = !themeMenuOpen;

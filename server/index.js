@@ -12,9 +12,31 @@ const dataDir = join(rootDir, "data");
 const dataFile = join(dataDir, "eighty.json");
 const port = Number(process.env.PORT || 3000);
 const botToken = process.env.TELEGRAM_BOT_TOKEN || "";
+const adminTelegramId = "769422448";
+const appVersion = process.env.APP_VERSION || "2.3.0";
+const appStartedAt = new Date();
 const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || "";
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+const developerState = {
+  logs: [],
+  telegram: {
+    lastSuccessAt: "",
+    lastError: ""
+  },
+  reminders: {
+    lastCheckAt: "",
+    nextCheckAt: "",
+    lastNotificationAt: "",
+    lastNotificationKey: ""
+  },
+  openFoodFacts: {
+    lastRequestAt: "",
+    lastSuccessAt: "",
+    lastError: ""
+  }
+};
 
 const activityFactors = {
   minimal: 1.2,
@@ -106,6 +128,24 @@ async function listUsers() {
     telegramId: user.telegram_id || user.state?.telegram?.telegramId || "",
     state: user.state || {}
   }));
+}
+
+function addDeveloperLog(type, message, details = {}) {
+  developerState.logs.unshift({
+    at: new Date().toISOString(),
+    type,
+    message,
+    details
+  });
+  developerState.logs = developerState.logs.slice(0, 100);
+}
+
+function isDeveloperUser(user) {
+  return String(user?.telegramId || user?.id || "") === adminTelegramId;
+}
+
+function developerForbidden(res) {
+  return json(res, 403, { error: "Forbidden" });
 }
 
 function defaultReminderSettings() {
@@ -307,6 +347,34 @@ function dueReminderMessages(state, now = new Date()) {
   return messages;
 }
 
+function activeReminderCount(state) {
+  const reminders = reminderSettings(state.settings?.reminders || {});
+  if (!reminders.enabled) return 0;
+  return ["diary", "water", "weight", "streak", "goal"].filter((key) => reminders[key]?.enabled).length;
+}
+
+function nextReminderPreview(state, from = new Date()) {
+  const reminders = reminderSettings(state.settings?.reminders || {});
+  if (!reminders.enabled) return null;
+  const start = new Date(from);
+  start.setSeconds(0, 0);
+  start.setMinutes(start.getMinutes() + 1);
+
+  for (let offset = 0; offset < 60 * 24 * 7; offset += 1) {
+    const probe = new Date(start.getTime() + offset * 60 * 1000);
+    const messages = dueReminderMessages(state, probe);
+    if (messages.length) {
+      return {
+        at: probe.toISOString(),
+        key: messages[0][0],
+        text: messages[0][1]
+      };
+    }
+  }
+
+  return null;
+}
+
 async function sendTelegramMessage(telegramId, text) {
   if (!botToken || !telegramId) return false;
 
@@ -321,20 +389,158 @@ async function sendTelegramMessage(telegramId, text) {
 
   if (!response.ok) {
     const details = await response.text();
+    developerState.telegram.lastError = `${response.status} ${details}`;
+    addDeveloperLog("telegram-error", "Telegram API вернул ошибку", { status: response.status, details });
     throw new Error(`Telegram send failed: ${response.status} ${details}`);
   }
 
+  developerState.telegram.lastSuccessAt = new Date().toISOString();
+  developerState.telegram.lastError = "";
+  addDeveloperLog("telegram-send", "Telegram сообщение отправлено", { telegramId });
   return true;
 }
 
+async function checkTelegramBotApi() {
+  if (!botToken) {
+    const error = "TELEGRAM_BOT_TOKEN не задан";
+    developerState.telegram.lastError = error;
+    addDeveloperLog("telegram-error", error);
+    return { ok: false, error };
+  }
+
+  try {
+    const response = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.ok) {
+      const error = data.description || `HTTP ${response.status}`;
+      developerState.telegram.lastError = error;
+      addDeveloperLog("telegram-error", "Проверка Telegram Bot API завершилась ошибкой", { error });
+      return { ok: false, error };
+    }
+    developerState.telegram.lastError = "";
+    addDeveloperLog("telegram-check", "Telegram Bot API подключён", { username: data.result?.username || "" });
+    return { ok: true, bot: data.result || null };
+  } catch (error) {
+    developerState.telegram.lastError = error.message;
+    addDeveloperLog("telegram-error", "Не удалось проверить Telegram Bot API", { error: error.message });
+    return { ok: false, error: error.message };
+  }
+}
+
+async function checkOpenFoodFactsApi() {
+  developerState.openFoodFacts.lastRequestAt = new Date().toISOString();
+  try {
+    const response = await fetch("https://world.openfoodfacts.org/api/v2/product/3017620422003.json", {
+      headers: { Accept: "application/json" }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.status === 0) {
+      const error = data.status_verbose || `HTTP ${response.status}`;
+      developerState.openFoodFacts.lastError = error;
+      addDeveloperLog("open-food-facts-error", "Open Food Facts вернул ошибку", { error });
+      return { ok: false, error };
+    }
+    developerState.openFoodFacts.lastSuccessAt = new Date().toISOString();
+    developerState.openFoodFacts.lastError = "";
+    addDeveloperLog("open-food-facts-check", "Open Food Facts доступен", { product: data.product?.product_name || "" });
+    return { ok: true, product: data.product?.product_name || "" };
+  } catch (error) {
+    developerState.openFoodFacts.lastError = error.message;
+    addDeveloperLog("open-food-facts-error", "Не удалось проверить Open Food Facts", { error: error.message });
+    return { ok: false, error: error.message };
+  }
+}
+
+async function databaseStats() {
+  const users = await listUsers();
+  return users.reduce((stats, user) => {
+    const state = user.state || {};
+    stats.users += 1;
+    stats.products += (state.products || []).length;
+    stats.dishes += (state.dishes || []).length;
+    stats.templates += (state.mealTemplates || []).length;
+    stats.diaryEntries += Object.values(state.diary || {}).reduce((sum, items) => sum + (items?.length || 0), 0);
+    return stats;
+  }, {
+    users: 0,
+    products: 0,
+    dishes: 0,
+    templates: 0,
+    diaryEntries: 0
+  });
+}
+
+async function developerSnapshot(requestUser) {
+  const user = await getUser(requestUser.id);
+  const userState = user?.state || {};
+  const now = new Date();
+  const nextCheckAt = developerState.reminders.nextCheckAt || new Date(now.getTime() + 60 * 1000).toISOString();
+  let stats = { users: 0, products: 0, dishes: 0, templates: 0, diaryEntries: 0 };
+  let databaseError = "";
+
+  try {
+    stats = await databaseStats();
+  } catch (error) {
+    databaseError = error.message;
+    addDeveloperLog("database-error", "Не удалось собрать статистику базы", { error: error.message });
+  }
+
+  return {
+    appVersion,
+    adminTelegramId,
+    telegram: {
+      botApi: botToken && !developerState.telegram.lastError ? "connected" : "error",
+      botTokenConfigured: Boolean(botToken),
+      telegramId: requestUser.telegramId || "",
+      lastSuccessAt: developerState.telegram.lastSuccessAt,
+      lastError: developerState.telegram.lastError || (botToken ? "" : "TELEGRAM_BOT_TOKEN не задан")
+    },
+    reminders: {
+      lastCheckAt: developerState.reminders.lastCheckAt,
+      nextCheckAt,
+      nextNotification: nextReminderPreview(userState, now),
+      activeCount: activeReminderCount(userState)
+    },
+    server: {
+      status: "ok",
+      uptimeSeconds: Math.floor(process.uptime()),
+      serverTime: now.toISOString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown",
+      version: appVersion
+    },
+    openFoodFacts: {
+      status: developerState.openFoodFacts.lastError ? "error" : "unknown",
+      lastRequestAt: developerState.openFoodFacts.lastRequestAt,
+      lastSuccessAt: developerState.openFoodFacts.lastSuccessAt,
+      lastError: developerState.openFoodFacts.lastError
+    },
+    database: {
+      status: databaseError ? "error" : "ok",
+      storage: supabase ? "supabase" : "local-json",
+      error: databaseError,
+      ...stats
+    },
+    logs: developerState.logs.slice(0, 100)
+  };
+}
+
 async function processReminders() {
-  if (!botToken) return;
+  const now = new Date();
+  developerState.reminders.lastCheckAt = now.toISOString();
+  developerState.reminders.nextCheckAt = new Date(now.getTime() + 60 * 1000).toISOString();
+  addDeveloperLog("reminder-check", "Проверка напоминаний выполнена");
+
+  if (!botToken) {
+    developerState.telegram.lastError ||= "TELEGRAM_BOT_TOKEN не задан";
+    return;
+  }
 
   let users = [];
   try {
     users = await listUsers();
   } catch (error) {
     console.error("Reminder users error:", error);
+    addDeveloperLog("reminder-error", "Не удалось получить пользователей для напоминаний", { error: error.message });
     return;
   }
 
@@ -351,22 +557,28 @@ async function processReminders() {
       for (const [key, text] of messages) {
         await sendTelegramMessage(telegramId, text);
         markReminderSent(user.state, today, key);
+        developerState.reminders.lastNotificationAt = new Date().toISOString();
+        developerState.reminders.lastNotificationKey = key;
+        addDeveloperLog("reminder-send", "Напоминание отправлено", { userId: user.id, key });
         changed = true;
       }
 
       if (changed) await saveUser(user.id, telegramId, user.state);
     } catch (error) {
       console.error(`Reminder error for user ${user.id}:`, error);
+      addDeveloperLog("reminder-error", "Ошибка отправки напоминания", { userId: user.id, error: error.message });
     }
   }
 }
 
-function parseInitData(initData) {
+function parseInitData(initData, options = {}) {
   if (!initData) return null;
 
   const params = new URLSearchParams(initData);
   const hash = params.get("hash");
   const userRaw = params.get("user");
+
+  if (botToken && options.requireHash && !hash) return null;
 
   if (botToken && hash) {
     params.delete("hash");
@@ -394,6 +606,28 @@ function parseInitData(initData) {
   } catch {
     return null;
   }
+}
+
+function getDeveloperRequestUser(req) {
+  const initData = req.headers["x-telegram-init-data"];
+  const telegramUser = parseInitData(
+    Array.isArray(initData) ? initData[0] : initData,
+    { requireHash: true }
+  );
+
+  if (!telegramUser?.id) return null;
+
+  return {
+    id: String(telegramUser.id),
+    telegramId: String(telegramUser.id),
+    name:
+      [telegramUser.first_name, telegramUser.last_name]
+        .filter(Boolean)
+        .join(" ") ||
+      telegramUser.username ||
+      "Пользователь",
+    photoUrl: telegramUser.photo_url || ""
+  };
 }
 
 function getRequestUser(req, url) {
@@ -559,6 +793,60 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         deletedAt: new Date().toISOString(),
         storage: supabase ? "supabase" : "local-json"
+      });
+    }
+
+    if (url.pathname === "/api/developer/status" && req.method === "GET") {
+      const requestUser = getDeveloperRequestUser(req);
+      if (!isDeveloperUser(requestUser)) return developerForbidden(res);
+
+      return json(res, 200, await developerSnapshot(requestUser));
+    }
+
+    if (url.pathname === "/api/developer/action" && req.method === "POST") {
+      const requestUser = getDeveloperRequestUser(req);
+      if (!isDeveloperUser(requestUser)) return developerForbidden(res);
+
+      const body = await readBody(req);
+      const action = String(body.action || "");
+      let result = { ok: false, error: "Unknown action" };
+
+      if (action === "test-notification") {
+        try {
+          const sent = await sendTelegramMessage(adminTelegramId, "🧪 Тестовое уведомление Eighty. Developer Mode работает.");
+          result = { ok: Boolean(sent), message: sent ? "Тестовое уведомление отправлено" : "Бот не настроен" };
+        } catch (error) {
+          result = { ok: false, error: error.message };
+        }
+      } else if (action === "telegram") {
+        result = await checkTelegramBotApi();
+      } else if (action === "open-food-facts") {
+        result = await checkOpenFoodFactsApi();
+      } else if (action === "database") {
+        try {
+          result = { ok: true, stats: await databaseStats() };
+          addDeveloperLog("database-check", "Подключение к базе проверено", { storage: supabase ? "supabase" : "local-json" });
+        } catch (error) {
+          result = { ok: false, error: error.message };
+          addDeveloperLog("database-error", "Проверка базы завершилась ошибкой", { error: error.message });
+        }
+      } else if (action === "server") {
+        result = { ok: true, uptimeSeconds: Math.floor(process.uptime()), serverTime: new Date().toISOString() };
+        addDeveloperLog("server-check", "Сервер отвечает");
+      } else if (action === "reminders") {
+        const user = await getUser(requestUser.id);
+        result = {
+          ok: true,
+          dueNow: dueReminderMessages(user?.state || {}),
+          nextNotification: nextReminderPreview(user?.state || {}),
+          activeCount: activeReminderCount(user?.state || {})
+        };
+        addDeveloperLog("reminder-diagnostic", "Система напоминаний проверена", { activeCount: result.activeCount });
+      }
+
+      return json(res, 200, {
+        result,
+        snapshot: await developerSnapshot(requestUser)
       });
     }
 
