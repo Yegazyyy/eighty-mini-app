@@ -221,7 +221,6 @@ let onboardingDraft = null;
 let libraryEditor = null;
 let deleteConfirm = null;
 let entryDraft = { meal: "breakfast", items: {} };
-let selectedEntryIds = new Set();
 let mealCartOpen = false;
 let addPanelMode = "existing";
 let addPage = "home";
@@ -1494,7 +1493,6 @@ function setAddPage(page) {
 function openAdd(meal = "breakfast") {
   activeScreen = "add";
   entryDraft = { meal, items: {} };
-  selectedEntryIds = new Set();
   addPage = "ration";
   addPanelMode = "existing";
   addFoodSource = "mine";
@@ -1540,7 +1538,6 @@ function changeDate(delta) {
   const next = nearestAvailableDay(selectedDate, delta);
   if (!next) return false;
   selectedDate = next;
-  selectedEntryIds = new Set();
   ensureShape();
   render();
   return true;
@@ -1842,7 +1839,6 @@ function resetTransientUiState() {
   libraryEditor = null;
   deleteConfirm = null;
   entryDraft = { meal: "breakfast", items: {} };
-  selectedEntryIds = new Set();
   mealCartOpen = false;
   addPanelMode = "existing";
   addPage = "home";
@@ -2141,7 +2137,8 @@ function stepCartAmount(id, direction) {
 function addEntry(form) {
   ensureEntryDraft();
   const data = form ? new FormData(form) : null;
-  const meal = data?.get("meal") || entryDraft.meal;
+  const requestedMeal = data?.get("meal") || entryDraft.meal;
+  const meal = labels.meals[requestedMeal] ? requestedMeal : "breakfast";
   const selected = selectedMealItems()
     .map(({ product, amount }) => {
       const rawAmount = number(amount, 0);
@@ -2162,11 +2159,13 @@ function addEntry(form) {
     const entries = state.diary[editing.date] || [];
     const item = entries.find((entry) => entry.id === editing.id);
     if (!item) return toast("Запись не найдена");
+    const nextMeal = labels.meals[meal] ? meal : editing.meal;
+    item.meal = nextMeal;
     item.amount = amount;
     item.unit = product.type === "piece" ? "шт." : "г";
     item.nutrients = calcProduct(product, amount);
     if (product.temporary || item.productSnapshot) item.productSnapshot = diaryProductSnapshot({ ...product, temporary: true });
-    entryDraft = { meal: editing.meal || meal, items: {} };
+    entryDraft = { meal: nextMeal, items: {} };
     mealCartOpen = false;
     activeScreen = "diary";
     addPage = "home";
@@ -2193,52 +2192,8 @@ function addEntry(form) {
 
 function deleteEntry(id) {
   state.diary[selectedDate] = entriesForDate().filter((item) => item.id !== id);
-  selectedEntryIds.delete(id);
   persist();
   render();
-}
-
-function selectableEntryIdsForDate(date = selectedDate) {
-  return new Set((state.diary[date] || []).map((entry) => entry.id));
-}
-
-function pruneSelectedEntryIds() {
-  const existing = selectableEntryIdsForDate();
-  selectedEntryIds = new Set([...selectedEntryIds].filter((id) => existing.has(id)));
-}
-
-function toggleEntrySelection(id, checked) {
-  if (checked) selectedEntryIds.add(id);
-  else selectedEntryIds.delete(id);
-  pruneSelectedEntryIds();
-  render();
-}
-
-function moveEntriesToMeal(ids, meal) {
-  if (!labels.meals[meal]) return;
-  const idSet = new Set(ids);
-  let moved = 0;
-  for (const entry of entriesForDate()) {
-    if (!idSet.has(entry.id) || entry.meal === meal) continue;
-    entry.meal = meal;
-    moved += 1;
-  }
-  if (!moved) return;
-  selectedEntryIds = new Set([...selectedEntryIds].filter((id) => !idSet.has(id)));
-  persist();
-  render();
-  toast(moved === 1 ? "Продукт перенесён" : `Перенесено: ${moved}`);
-}
-
-function moveEntryToMeal(id, meal) {
-  moveEntriesToMeal([id], meal);
-}
-
-function moveSelectedEntriesToMeal(meal) {
-  if (!meal) return;
-  pruneSelectedEntryIds();
-  if (!selectedEntryIds.size) return toast("Выберите продукты");
-  moveEntriesToMeal([...selectedEntryIds], meal);
 }
 
 function addProduct(form) {
@@ -3150,6 +3105,7 @@ function energyCard(targets, consumed, remaining, progress) {
   const ringShowsConsumed = energyRingMode === "consumed";
   const ringValue = ringShowsConsumed ? consumed.calories : remaining;
   const ringLabel = ringShowsConsumed ? "Съедено" : "Осталось";
+  const ringTargetText = targets.complete ? `из ${round(targets.calories)} ккал` : "ккал";
   const streakActiveToday = (state.diary[todayIso()] || []).length > 0;
   return `<div class="energy-card" data-action="toggle-energy-ring" role="button" tabindex="0" aria-label="Переключить отображение калорий">
     <span class="energy-streak-indicator ${streakActiveToday ? "active" : ""}"><i>🔥</i> ${round(state.stats.currentStreak)} дн.</span>
@@ -3157,7 +3113,7 @@ function energyCard(targets, consumed, remaining, progress) {
       <div>
         <span class="energy-ring-label">${ringLabel}</span>
         <strong>${round(ringValue)}</strong>
-        <span class="energy-ring-unit">ккал</span>
+        <span class="energy-ring-unit">${ringTargetText}</span>
       </div>
     </div>
     <div class="energy-info">
@@ -3182,35 +3138,13 @@ function macroLine(label, value, target, kind) {
 }
 
 function mealsSection() {
-  pruneSelectedEntryIds();
   return `<section class="section-block">
     <div class="section-title compact-section-title">
       <h2>ПРИЁМЫ ПИЩИ</h2>
-      ${selectedEntryIds.size ? `<button class="secondary-btn compact-btn" type="button" data-action="clear-entry-selection">Снять выбор</button>` : ""}
     </div>
-    ${selectedEntryIds.size ? entryBulkMoveBar() : ""}
     <div class="meal-list">${Object.entries(labels.meals).map(([meal, data]) => mealCard(meal, data)).join("")}</div>
     <div class="info-card">Добавляйте блюда сразу после еды — так дневник остаётся точным.</div>
   </section>`;
-}
-
-function mealOptions(selectedMeal) {
-  return Object.entries(labels.meals)
-    .map(([id, data]) => `<option value="${id}" ${id === selectedMeal ? "selected" : ""}>${data.short}</option>`)
-    .join("");
-}
-
-function entryBulkMoveBar() {
-  return `<div class="entry-bulk-bar">
-    <span>Выбрано: ${selectedEntryIds.size}</span>
-    <label>
-      <span>Перенести в</span>
-      <select data-bulk-move-meal>
-        <option value="">Выберите приём</option>
-        ${mealOptions("")}
-      </select>
-    </label>
-  </div>`;
 }
 
 function mealCard(meal, data) {
@@ -3238,12 +3172,7 @@ function mealCard(meal, data) {
 }
 
 function entryRow(item) {
-  const checked = selectedEntryIds.has(item.id);
-  return `<div class="entry-row ${checked ? "selected" : ""}">
-    <label class="entry-select" title="Выбрать для переноса">
-      <input type="checkbox" data-select-entry="${item.id}" ${checked ? "checked" : ""} aria-label="Выбрать ${escapeHtml(item.label)}">
-      <span>✓</span>
-    </label>
+  return `<div class="entry-row">
     <button class="entry-row-main" type="button" data-edit-entry="${item.id}" aria-label="Редактировать ${escapeHtml(item.label)}">
       <div class="entry-row-head">
         <strong>${escapeHtml(item.label)}</strong>
@@ -3255,12 +3184,6 @@ function entryRow(item) {
         <span>У ${round(item.nutrients.carbs)}</span>
       </div>
     </button>
-    <label class="entry-meal-move" title="Перенести в другой приём пищи">
-      <span>Приём</span>
-      <select data-move-entry="${item.id}" aria-label="Перенести ${escapeHtml(item.label)}">
-        ${mealOptions(item.meal)}
-      </select>
-    </label>
     <button class="icon-btn compact delete-btn" data-delete-entry="${item.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
@@ -4074,7 +3997,10 @@ function addRationAmountsPage() {
     </header>` : addBackHeader("Количество", "ration")}
     <form class="add-meal-flow" data-form="entry">
       <input type="hidden" name="meal" value="${entryDraft.meal}">
-      ${editing ? "" : amountMealPicker()}
+      ${editing ? `<div class="entry-edit-meal-field">
+        <span>Приём пищи</span>
+        ${amountMealPicker({ editMode: true })}
+      </div>` : amountMealPicker()}
       <div class="product-choice-list">
         ${items.length ? items.map(rationAmountCard).join("") : `<div class="empty-line">Выберите продукты</div>`}
       </div>
@@ -4082,8 +4008,11 @@ function addRationAmountsPage() {
     </form>`;
 }
 
-function amountMealPicker() {
-  const meals = Object.entries(labels.meals);
+function amountMealPicker(options = {}) {
+  const editMode = Boolean(options.editMode);
+  const editIcons = { breakfast: "🌅", lunch: "🍽", snacks: "🍎", dinner: "🌙" };
+  const mealIds = editMode ? ["breakfast", "lunch", "snacks", "dinner"] : Object.keys(labels.meals);
+  const meals = mealIds.map((id) => [id, { ...labels.meals[id], icon: editMode ? editIcons[id] : labels.meals[id].icon }]);
   const activeIndex = Math.max(0, meals.findIndex(([id]) => entryDraft.meal === id));
   return `<div class="amount-meal-picker" data-active-index="${activeIndex}" role="group" aria-label="Приём пищи">
     ${meals.map(([id, data]) => `<button class="${entryDraft.meal === id ? "active" : ""}" type="button" data-add-meal="${id}">
@@ -6277,11 +6206,6 @@ app.addEventListener("click", async (event) => {
     mealCartOpen = !mealCartOpen;
     render();
   }
-  if (button.dataset.action === "clear-entry-selection") {
-    selectedEntryIds = new Set();
-    render();
-    return;
-  }
   if (button.dataset.action === "add-eighty-food") {
     addEightyFoodToMeal();
   }
@@ -6335,7 +6259,7 @@ app.addEventListener("click", async (event) => {
     const mealInput = form.querySelector('input[name="meal"]');
     if (mealInput) mealInput.value = entryDraft.meal;
     const submit = form.querySelector(".add-meal-submit");
-    if (submit) submit.textContent = mealButtonLabel(entryDraft.meal);
+    if (submit && !entryDraft.editing) submit.textContent = mealButtonLabel(entryDraft.meal);
     return;
   }
   if (button.dataset.favoritesSort) {
@@ -6354,18 +6278,6 @@ app.addEventListener("keydown", (event) => {
 
 app.addEventListener("change", (event) => {
   const target = event.target;
-  if (target.dataset.selectEntry) {
-    toggleEntrySelection(target.dataset.selectEntry, target.checked);
-    return;
-  }
-  if (target.dataset.moveEntry) {
-    moveEntryToMeal(target.dataset.moveEntry, target.value);
-    return;
-  }
-  if (target.dataset.bulkMoveMeal !== undefined) {
-    moveSelectedEntriesToMeal(target.value);
-    return;
-  }
   if (target.dataset.reminderField) {
     setReminderPath(target.dataset.reminderField, target.value);
     return;
