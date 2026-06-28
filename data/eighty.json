@@ -28,7 +28,7 @@
           "waterEnabled": true,
           "waterManual": false,
           "waterGoal": 2950,
-          "targetsPanelOpen": true,
+          "targetsPanelOpen": false,
           "themeMode": "dark",
           "reminders": {
             "enabled": true,
@@ -437,7 +437,7 @@
         "accountResetAt": "2026-06-25T03:46:36.159Z",
         "mealTemplates": []
       },
-      "updatedAt": "2026-06-28T18:14:02.300Z"
+      "updatedAt": "2026-06-28T18:55:24.282Z"
     },
     "codex-onboarding-test": {
       "telegramId": "codex-onboarding-test",

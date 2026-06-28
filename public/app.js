@@ -240,6 +240,7 @@ let earnedAchievementsOpen = false;
 let keyboardBaseHeight = window.visualViewport?.height || window.innerHeight;
 let keyboardTimer = null;
 let keyboardScrollTimer = null;
+let modalScrollY = 0;
 
 const formControlSelector = 'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), textarea, select';
 const systemThemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -272,6 +273,39 @@ function setKeyboardMode(active, offset = 0) {
   document.documentElement.classList.toggle("keyboard-open", active);
   document.body.classList.toggle("keyboard-open", active);
   setKeyboardOffset(active ? offset : 0);
+}
+
+function hasModalOpen() {
+  return Boolean(
+    waterHistoryOpen ||
+    profileDetailsOpen ||
+    nutritionInfoOpen ||
+    eightyFoodDialog ||
+    barcodeScannerOpen ||
+    mealTemplateEditor ||
+    libraryEditor ||
+    achievementsOpen ||
+    earnedAchievementsOpen ||
+    periodSheetOpen ||
+    deleteConfirm ||
+    accountDeleteOpen ||
+    accountDeleteBusy
+  );
+}
+
+function setModalMode(active) {
+  document.documentElement.classList.toggle("modal-open", active);
+  document.body.classList.toggle("modal-open", active);
+  if (active && !modalScrollY) {
+    modalScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.body.style.setProperty("--modal-scroll-y", `${modalScrollY}px`);
+  }
+  if (!active) {
+    const previousScroll = modalScrollY;
+    modalScrollY = 0;
+    document.body.style.removeProperty("--modal-scroll-y");
+    if (previousScroll) window.scrollTo(0, previousScroll);
+  }
 }
 
 function updateKeyboardMode() {
@@ -311,8 +345,10 @@ function scrollFocusedControlIntoView(control) {
   const actions = modal.querySelector(".modal-actions");
   const headHeight = head?.getBoundingClientRect().height || 0;
   const actionsHeight = actions?.getBoundingClientRect().height || 0;
+  const keyboardOffset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--keyboard-offset")) || 0;
+  const viewportBottom = Math.max(0, window.innerHeight - keyboardOffset);
   const topLimit = modalRect.top + headHeight + 12;
-  const bottomLimit = modalRect.bottom - actionsHeight - 16;
+  const bottomLimit = Math.min(modalRect.bottom, viewportBottom) - actionsHeight - 18;
   let delta = 0;
 
   if (targetRect.top < topLimit) delta = targetRect.top - topLimit;
@@ -2719,6 +2755,7 @@ function render() {
   selectedDate = normalizeAvailableDay(selectedDate);
   analyticsDate = normalizeAvailableDay(analyticsDate);
   if (!state.onboardingCompleted) {
+    setModalMode(false);
     app.innerHTML = screenOnboarding();
     focusOnboardingField();
     return;
@@ -2751,6 +2788,7 @@ function render() {
     ${accountDeleteOpen ? accountDeleteModal() : ""}
     ${accountDeleteBusy ? accountDeletingOverlay() : ""}
   `;
+  setModalMode(hasModalOpen());
   activateTabIndicatorMotion();
 }
 
@@ -3127,7 +3165,9 @@ function waterHistoryModal() {
           <span>Итого</span>
           <strong>${round(total)} мл</strong>
         </div>
-        <button class="primary-btn full-btn" type="submit">Сохранить</button>
+        <div class="modal-actions modal-actions-single">
+          <button class="primary-btn full-btn" type="submit">Сохранить</button>
+        </div>
       </form>
     </div>
   </div>`;
@@ -3490,7 +3530,9 @@ function analyticsPeriodSheet() {
           <div class="field"><label>Начало</label><input name="start" type="date" min="${min}" max="${today}" value="${draftStart}"></div>
           <div class="field"><label>Окончание</label><input name="end" type="date" min="${min}" max="${today}" value="${draftEnd}"></div>
         </div>
-        <button class="primary-btn full-btn" type="submit">Показать</button>
+        <div class="modal-actions modal-actions-single">
+          <button class="primary-btn full-btn" type="submit">Показать</button>
+        </div>
       </form>` : ""}
     </div>
   </div>`;
@@ -4155,7 +4197,9 @@ function eightyFoodModal() {
         <span>Итого</span>
         ${nutritionSummary(food, amount)}
       </div>
-      <button class="primary-btn full-btn" type="button" data-action="add-eighty-food">${mealButtonLabel(entryDraft.meal)}</button>
+      <div class="modal-actions modal-actions-single">
+        <button class="primary-btn full-btn" type="button" data-action="add-eighty-food">${mealButtonLabel(entryDraft.meal)}</button>
+      </div>
     </div>
   </div>`;
 }
@@ -5525,7 +5569,7 @@ function profileDetailsModal() {
         <input type="hidden" name="manualProtein" value="${p.manualTargets.protein}">
         <input type="hidden" name="manualFat" value="${p.manualTargets.fat}">
         <input type="hidden" name="manualCarbs" value="${p.manualTargets.carbs}">
-        <div class="field full"><button class="primary-btn full-btn" type="submit">Сохранить</button></div>
+        <div class="modal-actions modal-actions-single field full"><button class="primary-btn full-btn" type="submit">Сохранить</button></div>
       </form>
     </div>
   </div>`;
