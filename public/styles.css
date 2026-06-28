@@ -35,12 +35,12 @@
   --card-padding-lg: 16px;
   --button-height: 40px;
   --input-height: 44px;
-  --nav-height: 68px;
-  --nav-bottom: 9px;
+  --nav-height: 74px;
+  --nav-bottom: 5px;
   --nav-padding-y: 8px;
   --nav-padding-x: 8px;
   --nav-radius: 24px;
-  --tab-height: 46px;
+  --tab-height: 52px;
   --tab-icon-width: 32px;
   --tab-icon-height: 27px;
   --tab-font: 9.2px;
@@ -3464,31 +3464,31 @@ button:disabled {
 
 .date-switcher {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  grid-template-columns: var(--button-height) minmax(0, 1fr) var(--button-height);
   align-items: center;
-  gap: 10px;
+  gap: var(--spacing-sm);
 }
 
 .date-switcher strong {
-  min-height: 48px;
+  min-height: var(--button-height);
   display: grid;
   place-items: center;
-  padding: 0 12px;
+  padding: 0 var(--spacing-md);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: var(--radius-md);
   background: var(--panel);
   box-shadow: var(--shadow);
-  font-size: 18px;
-  font-weight: 950;
+  font-size: var(--font-h2);
+  font-weight: 720;
   text-align: center;
 }
 
 .analytics-day-card {
   display: grid;
-  gap: 12px;
-  padding: 20px;
+  gap: var(--spacing-sm);
+  padding: var(--card-padding-lg);
   border: 1px solid var(--line);
-  border-radius: 26px;
+  border-radius: var(--radius-lg);
   background: var(--green-deep);
   color: #fff;
   box-shadow: 0 22px 46px rgba(7, 27, 18, 0.18);
@@ -3496,12 +3496,12 @@ button:disabled {
 
 .analytics-day-card > span {
   color: rgba(255, 255, 255, 0.72);
-  font-size: 13px;
-  font-weight: 850;
+  font-size: var(--font-small);
+  font-weight: 560;
 }
 
 .analytics-day-card > strong {
-  font-size: 34px;
+  font-size: var(--font-display);
   line-height: 1;
   font-weight: 950;
 }
@@ -3509,9 +3509,9 @@ button:disabled {
 .analytics-status {
   margin: 0;
   color: rgba(255, 255, 255, 0.76);
-  font-size: 13px;
-  line-height: 1.25;
-  font-weight: 850;
+  font-size: var(--font-small);
+  line-height: 1.24;
+  font-weight: 560;
   animation: analyticsStatusFade 0.24s var(--ease-out);
 }
 
@@ -3529,10 +3529,10 @@ button:disabled {
 
 .analytics-water-card {
   display: grid;
-  gap: 12px;
-  padding: 18px;
+  gap: var(--spacing-sm);
+  padding: var(--card-padding);
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: var(--radius);
   background: var(--panel);
   box-shadow: var(--shadow);
 }
@@ -3540,35 +3540,36 @@ button:disabled {
 .analytics-water-card span {
   display: block;
   color: var(--muted);
-  font-size: 13px;
-  font-weight: 850;
+  font-size: var(--font-small);
+  font-weight: 560;
 }
 
 .analytics-water-card strong {
   display: block;
   margin-top: 4px;
-  font-size: 24px;
+  font-size: 22px;
   line-height: 1;
   font-weight: 950;
 }
 
 .analytics-water-card p {
-  margin: 6px 0 0;
+  margin: var(--spacing-xs) 0 0;
   color: #128247;
-  font-size: 13px;
-  font-weight: 900;
+  font-size: var(--font-small);
+  font-weight: 620;
 }
 
 .day-macro-list {
   display: grid;
-  gap: 8px;
+  gap: var(--spacing-sm);
 }
 
 .day-macro-item {
   display: grid;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: 16px;
+  gap: var(--spacing-xs);
+  min-height: 88px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.1);
 }
 
@@ -3576,23 +3577,26 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--spacing-sm);
 }
 
 .day-macro-list span {
   color: rgba(255, 255, 255, 0.72);
-  font-weight: 800;
+  font-size: var(--font-small);
+  font-weight: 560;
 }
 
 .day-macro-list b {
-  font-weight: 950;
+  font-size: var(--font-small);
+  font-weight: 760;
 }
 
 .day-macro-item .analytics-status {
-  margin-top: -4px;
+  margin-top: 0;
 }
 
 .day-macro-list .progress {
+  height: 7px;
   background: rgba(255, 255, 255, 0.18);
 }
 
@@ -3602,15 +3606,16 @@ button:disabled {
 }
 
 .analytics-goal-summary {
-  min-height: 42px;
+  min-height: 38px;
   display: flex;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 16px;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.1);
   color: rgba(255, 255, 255, 0.78);
-  font-size: 14px;
-  font-weight: 900;
+  font-size: var(--font-small);
+  line-height: 1.25;
+  font-weight: 620;
   animation: analyticsStatusFade 0.24s var(--ease-out);
 }
 
@@ -4356,7 +4361,7 @@ button:disabled {
   grid-column: 1 / -1;
   position: fixed;
   left: 50%;
-  bottom: calc(30px - var(--keyboard-offset));
+  bottom: calc(18px - var(--keyboard-offset));
   width: var(--action-button-size);
   height: var(--action-button-size);
   min-height: var(--action-button-size);
@@ -4831,7 +4836,7 @@ button:disabled {
   }
 
   .tab-action {
-    bottom: calc(28px - var(--keyboard-offset));
+    bottom: calc(16px - var(--keyboard-offset));
     width: var(--action-button-size);
     height: var(--action-button-size);
     min-height: var(--action-button-size);
