@@ -62,6 +62,26 @@ const eightyFoodCategories = [
     ]
   },
   {
+    id: "berries",
+    icon: "🫐",
+    label: "Ягоды",
+    products: [
+      ["strawberry", "Клубника", 32, 0.7, 0.3, 7.7],
+      ["raspberry", "Малина", 52, 1.2, 0.7, 11.9],
+      ["blueberry", "Черника", 57, 0.7, 0.3, 14.5],
+      ["bilberry", "Голубика", 57, 0.7, 0.3, 14.5],
+      ["blackberry", "Ежевика", 43, 1.4, 0.5, 10.2],
+      ["lingonberry", "Брусника", 46, 0.7, 0.5, 8.2],
+      ["cranberry", "Клюква", 46, 0.4, 0.1, 12.2],
+      ["red-currant", "Красная смородина", 56, 1.4, 0.2, 13.8],
+      ["black-currant", "Чёрная смородина", 63, 1.4, 0.4, 15.4],
+      ["gooseberry", "Крыжовник", 44, 0.9, 0.6, 10.2],
+      ["sour-cherry", "Вишня", 50, 1.0, 0.3, 12.2],
+      ["sweet-cherry", "Черешня", 63, 1.1, 0.2, 16.0],
+      ["sea-buckthorn", "Облепиха", 82, 1.2, 5.4, 5.7]
+    ]
+  },
+  {
     id: "eggs",
     icon: "🥚",
     label: "Яйца",
@@ -201,6 +221,7 @@ let onboardingDraft = null;
 let libraryEditor = null;
 let deleteConfirm = null;
 let entryDraft = { meal: "breakfast", items: {} };
+let selectedEntryIds = new Set();
 let mealCartOpen = false;
 let addPanelMode = "existing";
 let addPage = "home";
@@ -1046,6 +1067,36 @@ function calcProduct(product, amount) {
   };
 }
 
+function diaryProductSnapshot(product) {
+  return {
+    id: product.id,
+    name: product.name,
+    type: product.type || "weight",
+    calories: number(product.calories),
+    protein: number(product.protein),
+    fat: number(product.fat),
+    carbs: number(product.carbs),
+    cookedDryWeight: cookedWeightValue(product.cookedDryWeight, 100),
+    cookedReadyWeight: cookedWeightValue(product.cookedReadyWeight, product.type === "cooked" ? 230 : 100),
+    temporary: Boolean(product.temporary)
+  };
+}
+
+function addDiaryEntry(product, amount, meal = entryDraft.meal || "breakfast", options = {}) {
+  const snapshot = options.temporary ? diaryProductSnapshot({ ...product, temporary: true }) : null;
+  entriesForDate().push({
+    id: uid(),
+    meal,
+    productId: product.id,
+    label: product.name,
+    amount,
+    unit: product.type === "piece" ? "шт." : "г",
+    nutrients: calcProduct(product, amount),
+    ...(snapshot ? { productSnapshot: snapshot } : {}),
+    createdAt: new Date().toISOString()
+  });
+}
+
 function productById(id) {
   return state.products.find((product) => product.id === id);
 }
@@ -1443,6 +1494,7 @@ function setAddPage(page) {
 function openAdd(meal = "breakfast") {
   activeScreen = "add";
   entryDraft = { meal, items: {} };
+  selectedEntryIds = new Set();
   addPage = "ration";
   addPanelMode = "existing";
   addFoodSource = "mine";
@@ -1454,7 +1506,7 @@ function openAdd(meal = "breakfast") {
 function openEntryEditor(id) {
   const item = entriesForDate().find((entry) => entry.id === id);
   if (!item) return;
-  const product = addMealItemById(item.productId);
+  const product = addMealItemById(item.productId) || item.productSnapshot;
   if (!product) {
     toast("Не удалось открыть продукт для редактирования");
     return;
@@ -1462,6 +1514,7 @@ function openEntryEditor(id) {
   entryDraft = {
     meal: item.meal,
     items: { [product.id]: item.amount },
+    tempProducts: item.productSnapshot ? { [product.id]: product } : {},
     editing: {
       id: item.id,
       date: selectedDate,
@@ -1487,6 +1540,7 @@ function changeDate(delta) {
   const next = nearestAvailableDay(selectedDate, delta);
   if (!next) return false;
   selectedDate = next;
+  selectedEntryIds = new Set();
   ensureShape();
   render();
   return true;
@@ -1656,6 +1710,8 @@ function openProductCreateWithDraft(draft = null) {
     carbs: "",
     cookedDryWeight: "",
     cookedReadyWeight: "",
+    saveMode: "library",
+    diaryAmount: "",
     ...(draft || {})
   };
   addCreateMenuOpen = false;
@@ -1685,6 +1741,7 @@ function productDraftFromOpenFoodFacts(product, barcode) {
   return {
     name: product?.product_name_ru || product?.product_name || product?.generic_name || `Штрихкод ${barcode}`,
     type: "weight",
+    saveMode: "diary",
     calories: formatDraftNumber(caloriesFromNutriments(nutriments)),
     protein: formatDraftNumber(nutritionValue(nutriments, "proteins")),
     fat: formatDraftNumber(nutritionValue(nutriments, "fat")),
@@ -1705,11 +1762,11 @@ async function openProductFromBarcode(barcode) {
       toast("Продукт найден");
       return;
     }
-    openProductCreateWithDraft();
+    openProductCreateWithDraft({ saveMode: "diary" });
     toast("Продукт не найден. Заполните данные вручную.");
   } catch (error) {
     console.warn("Open Food Facts lookup failed", error);
-    openProductCreateWithDraft();
+    openProductCreateWithDraft({ saveMode: "diary" });
     toast("Не удалось получить данные. Заполните вручную.");
   }
 }
@@ -1785,6 +1842,7 @@ function resetTransientUiState() {
   libraryEditor = null;
   deleteConfirm = null;
   entryDraft = { meal: "breakfast", items: {} };
+  selectedEntryIds = new Set();
   mealCartOpen = false;
   addPanelMode = "existing";
   addPage = "home";
@@ -1845,8 +1903,9 @@ function ensureEntryDraft() {
   entryDraft ||= {};
   entryDraft.meal ||= "breakfast";
   entryDraft.items ||= {};
+  entryDraft.tempProducts ||= {};
   for (const id of Object.keys(entryDraft.items)) {
-    if (!addMealItemById(id)) delete entryDraft.items[id];
+    if (!addMealItemById(id) && !entryDraft.tempProducts[id]) delete entryDraft.items[id];
   }
 }
 
@@ -1940,7 +1999,7 @@ function addIngredientToBuilder(product) {
 function selectedMealItems() {
   ensureEntryDraft();
   return Object.keys(entryDraft.items)
-    .map((id) => addMealItemById(id))
+    .map((id) => addMealItemById(id) || entryDraft.tempProducts[id])
     .filter(Boolean)
     .map((product) => ({ product, amount: entryDraft.items[product.id] }));
 }
@@ -2106,6 +2165,7 @@ function addEntry(form) {
     item.amount = amount;
     item.unit = product.type === "piece" ? "шт." : "г";
     item.nutrients = calcProduct(product, amount);
+    if (product.temporary || item.productSnapshot) item.productSnapshot = diaryProductSnapshot({ ...product, temporary: true });
     entryDraft = { meal: editing.meal || meal, items: {} };
     mealCartOpen = false;
     activeScreen = "diary";
@@ -2119,16 +2179,7 @@ function addEntry(form) {
 
   for (const { product, amount } of selected) {
     const diaryProduct = product.kind === "eighty" ? saveEightyProduct(product) : product;
-    entriesForDate().push({
-      id: uid(),
-      meal,
-      productId: diaryProduct.id,
-      label: diaryProduct.name,
-      amount,
-      unit: diaryProduct.type === "piece" ? "шт." : "г",
-      nutrients: calcProduct(diaryProduct, amount),
-      createdAt: new Date().toISOString()
-    });
+    addDiaryEntry(diaryProduct, amount, meal, { temporary: Boolean(diaryProduct.temporary) });
   }
   entryDraft = { meal, items: {} };
   mealCartOpen = false;
@@ -2142,14 +2193,59 @@ function addEntry(form) {
 
 function deleteEntry(id) {
   state.diary[selectedDate] = entriesForDate().filter((item) => item.id !== id);
+  selectedEntryIds.delete(id);
   persist();
   render();
 }
 
+function selectableEntryIdsForDate(date = selectedDate) {
+  return new Set((state.diary[date] || []).map((entry) => entry.id));
+}
+
+function pruneSelectedEntryIds() {
+  const existing = selectableEntryIdsForDate();
+  selectedEntryIds = new Set([...selectedEntryIds].filter((id) => existing.has(id)));
+}
+
+function toggleEntrySelection(id, checked) {
+  if (checked) selectedEntryIds.add(id);
+  else selectedEntryIds.delete(id);
+  pruneSelectedEntryIds();
+  render();
+}
+
+function moveEntriesToMeal(ids, meal) {
+  if (!labels.meals[meal]) return;
+  const idSet = new Set(ids);
+  let moved = 0;
+  for (const entry of entriesForDate()) {
+    if (!idSet.has(entry.id) || entry.meal === meal) continue;
+    entry.meal = meal;
+    moved += 1;
+  }
+  if (!moved) return;
+  selectedEntryIds = new Set([...selectedEntryIds].filter((id) => !idSet.has(id)));
+  persist();
+  render();
+  toast(moved === 1 ? "Продукт перенесён" : `Перенесено: ${moved}`);
+}
+
+function moveEntryToMeal(id, meal) {
+  moveEntriesToMeal([id], meal);
+}
+
+function moveSelectedEntriesToMeal(meal) {
+  if (!meal) return;
+  pruneSelectedEntryIds();
+  if (!selectedEntryIds.size) return toast("Выберите продукты");
+  moveEntriesToMeal([...selectedEntryIds], meal);
+}
+
 function addProduct(form) {
   const data = new FormData(form);
+  const saveMode = data.get("saveMode") || "library";
   const product = {
-    id: uid(),
+    id: saveMode === "diary" ? `temp-${uid()}` : uid(),
     name: String(data.get("name") || "").trim(),
     type: data.get("type"),
     calories: number(data.get("calories")),
@@ -2160,6 +2256,22 @@ function addProduct(form) {
     cookedReadyWeight: cookedWeightValue(data.get("cookedReadyWeight"), 230)
   };
   if (!product.name) return toast("Введите название");
+  if (saveMode === "diary") {
+    const amount = product.type === "piece"
+      ? Math.max(1, Math.round(number(data.get("diaryAmount"), 0)))
+      : number(data.get("diaryAmount"), 0);
+    if (amount <= 0) return toast("Укажите количество для дневника");
+    product.temporary = true;
+    addDiaryEntry(product, amount, entryDraft.meal || "breakfast", { temporary: true });
+    productCreateDraft = null;
+    addPage = "home";
+    addFoodQuery = "";
+    blurActive();
+    persist();
+    render();
+    toast("Добавлено только в дневник");
+    return;
+  }
   state.products.unshift(product);
   productCreateDraft = null;
   blurActive();
@@ -3070,11 +3182,35 @@ function macroLine(label, value, target, kind) {
 }
 
 function mealsSection() {
+  pruneSelectedEntryIds();
   return `<section class="section-block">
-    <h2>ПРИЁМЫ ПИЩИ</h2>
+    <div class="section-title compact-section-title">
+      <h2>ПРИЁМЫ ПИЩИ</h2>
+      ${selectedEntryIds.size ? `<button class="secondary-btn compact-btn" type="button" data-action="clear-entry-selection">Снять выбор</button>` : ""}
+    </div>
+    ${selectedEntryIds.size ? entryBulkMoveBar() : ""}
     <div class="meal-list">${Object.entries(labels.meals).map(([meal, data]) => mealCard(meal, data)).join("")}</div>
     <div class="info-card">Добавляйте блюда сразу после еды — так дневник остаётся точным.</div>
   </section>`;
+}
+
+function mealOptions(selectedMeal) {
+  return Object.entries(labels.meals)
+    .map(([id, data]) => `<option value="${id}" ${id === selectedMeal ? "selected" : ""}>${data.short}</option>`)
+    .join("");
+}
+
+function entryBulkMoveBar() {
+  return `<div class="entry-bulk-bar">
+    <span>Выбрано: ${selectedEntryIds.size}</span>
+    <label>
+      <span>Перенести в</span>
+      <select data-bulk-move-meal>
+        <option value="">Выберите приём</option>
+        ${mealOptions("")}
+      </select>
+    </label>
+  </div>`;
 }
 
 function mealCard(meal, data) {
@@ -3102,7 +3238,12 @@ function mealCard(meal, data) {
 }
 
 function entryRow(item) {
-  return `<div class="entry-row">
+  const checked = selectedEntryIds.has(item.id);
+  return `<div class="entry-row ${checked ? "selected" : ""}">
+    <label class="entry-select" title="Выбрать для переноса">
+      <input type="checkbox" data-select-entry="${item.id}" ${checked ? "checked" : ""} aria-label="Выбрать ${escapeHtml(item.label)}">
+      <span>✓</span>
+    </label>
     <button class="entry-row-main" type="button" data-edit-entry="${item.id}" aria-label="Редактировать ${escapeHtml(item.label)}">
       <div class="entry-row-head">
         <strong>${escapeHtml(item.label)}</strong>
@@ -3114,6 +3255,12 @@ function entryRow(item) {
         <span>У ${round(item.nutrients.carbs)}</span>
       </div>
     </button>
+    <label class="entry-meal-move" title="Перенести в другой приём пищи">
+      <span>Приём</span>
+      <select data-move-entry="${item.id}" aria-label="Перенести ${escapeHtml(item.label)}">
+        ${mealOptions(item.meal)}
+      </select>
+    </label>
     <button class="icon-btn compact delete-btn" data-delete-entry="${item.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
@@ -4326,6 +4473,34 @@ function productChoiceCard(product) {
   </article>`;
 }
 
+function productSaveModeFields(draft = {}) {
+  const mode = draft.saveMode || "library";
+  const mealName = labels.meals[entryDraft.meal]?.short || "приём пищи";
+  return `<div class="field full product-save-mode">
+    <label>Как добавить продукт</label>
+    <div class="choice-card-grid compact">
+      <label class="choice-card ${mode === "library" ? "selected" : ""}">
+        <input type="radio" name="saveMode" value="library" ${mode === "library" ? "checked" : ""}>
+        <span>📌</span>
+        <strong>Сохранить в моих продуктах</strong>
+        <em>Будет доступен для повторного использования</em>
+        <b>✓</b>
+      </label>
+      <label class="choice-card ${mode === "diary" ? "selected" : ""}">
+        <input type="radio" name="saveMode" value="diary" ${mode === "diary" ? "checked" : ""}>
+        <span>🕒</span>
+        <strong>Добавить только в дневник</strong>
+        <em>Только в ${escapeHtml(mealName)}, без сохранения в базу</em>
+        <b>✓</b>
+      </label>
+    </div>
+  </div>
+  <div class="field full temporary-amount-field">
+    <label>Количество для дневника</label>
+    <input name="diaryAmount" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="done" placeholder="Например, 180" value="${escapeHtml(draft.diaryAmount || "")}">
+  </div>`;
+}
+
 function manualProductForm() {
   return `<div class="panel">
     <button class="create-dish-btn" type="button" data-action="open-dish-builder">
@@ -4340,6 +4515,7 @@ function manualProductForm() {
       <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г"></div>
       <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="0"></div>
       <div class="field cooked-field"><label>Вес после приготовления, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="0"></div>
+      ${productSaveModeFields({ saveMode: "library" })}
       <div class="field full"><button class="primary-btn" type="submit">Сохранить продукт</button></div>
     </form>
   </div>`;
@@ -4360,7 +4536,8 @@ function createProductPage() {
         <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г" value="${escapeHtml(draft.carbs || "")}"></div>
         <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="0" value="${escapeHtml(draft.cookedDryWeight || "")}"></div>
         <div class="field cooked-field"><label>Вес после приготовления, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="0" value="${escapeHtml(draft.cookedReadyWeight || "")}"></div>
-        <div class="field full"><button class="primary-btn full-btn" type="submit">Сохранить продукт</button></div>
+        ${productSaveModeFields(draft)}
+        <div class="field full"><button class="primary-btn full-btn" type="submit">${(draft.saveMode || "library") === "diary" ? "Добавить в дневник" : "Сохранить продукт"}</button></div>
       </form>
     </div>`;
 }
@@ -6100,6 +6277,11 @@ app.addEventListener("click", async (event) => {
     mealCartOpen = !mealCartOpen;
     render();
   }
+  if (button.dataset.action === "clear-entry-selection") {
+    selectedEntryIds = new Set();
+    render();
+    return;
+  }
   if (button.dataset.action === "add-eighty-food") {
     addEightyFoodToMeal();
   }
@@ -6172,6 +6354,18 @@ app.addEventListener("keydown", (event) => {
 
 app.addEventListener("change", (event) => {
   const target = event.target;
+  if (target.dataset.selectEntry) {
+    toggleEntrySelection(target.dataset.selectEntry, target.checked);
+    return;
+  }
+  if (target.dataset.moveEntry) {
+    moveEntryToMeal(target.dataset.moveEntry, target.value);
+    return;
+  }
+  if (target.dataset.bulkMoveMeal !== undefined) {
+    moveSelectedEntriesToMeal(target.value);
+    return;
+  }
   if (target.dataset.reminderField) {
     setReminderPath(target.dataset.reminderField, target.value);
     return;
@@ -6181,6 +6375,14 @@ app.addEventListener("change", (event) => {
 
   const productForm = target.closest('form[data-form="product"]');
   if (productForm && target.name === "type") productForm.classList.toggle("cooked-mode", target.value === "cooked");
+  if (productForm && target.name === "saveMode") {
+    const mode = target.value;
+    productForm.querySelectorAll(".product-save-mode .choice-card").forEach((card) => {
+      card.classList.toggle("selected", card.querySelector("input")?.checked);
+    });
+    const submit = productForm.querySelector('button[type="submit"]');
+    if (submit) submit.textContent = mode === "diary" ? "Добавить в дневник" : "Сохранить продукт";
+  }
 
   const productEditForm = target.closest('form[data-form="product-edit"]');
   if (productEditForm && target.name === "type") productEditForm.classList.toggle("cooked-mode", target.value === "cooked");
