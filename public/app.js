@@ -416,6 +416,9 @@ function setupKeyboardBehavior() {
 
   document.addEventListener("focusin", (event) => {
     if (!isFormControl(event.target)) return;
+    if (event.target.matches("[data-select-on-focus]")) {
+      setTimeout(() => event.target.select?.(), 0);
+    }
     setKeyboardMode(true, Math.max(0, keyboardBaseHeight - (viewport?.height || window.innerHeight)));
     clearTimeout(keyboardScrollTimer);
     keyboardScrollTimer = setTimeout(() => {
@@ -1076,9 +1079,8 @@ function calcProduct(product, amount) {
   let factor = qty;
   if (product.type === "weight" || product.type === "volume") factor = qty / 100;
   if (product.type === "cooked") {
-    const dry = cookedWeightValue(product.cookedDryWeight, 100);
     const ready = cookedWeightValue(product.cookedReadyWeight, 230);
-    factor = (qty * dry / ready) / 100;
+    factor = qty / ready;
   }
   return {
     calories: number(product.calories) * factor,
@@ -1743,8 +1745,8 @@ function openProductCreateWithDraft(draft = null) {
     protein: "",
     fat: "",
     carbs: "",
-    cookedDryWeight: "",
-    cookedReadyWeight: "",
+    cookedDryWeight: "100",
+    cookedReadyWeight: "100",
     saveMode: "library",
     diaryAmount: "",
     ...(draft || {})
@@ -1765,7 +1767,7 @@ function syncProductCreateDraft(form) {
     fat: data.get("fat") || "",
     carbs: data.get("carbs") || "",
     cookedDryWeight: data.get("cookedDryWeight") || "100",
-    cookedReadyWeight: data.get("cookedReadyWeight") ?? "",
+    cookedReadyWeight: data.get("cookedReadyWeight") || "100",
     saveMode: data.get("saveMode") || "library",
     diaryAmount: data.get("diaryAmount") || ""
   };
@@ -2268,8 +2270,10 @@ function addProduct(form) {
   const data = new FormData(form);
   const saveMode = data.get("saveMode") || "library";
   const baseType = data.get("type") || "weight";
-  const readyWeight = cookingReadyValue(data.get("cookedReadyWeight"));
-  const productType = readyWeight > 0 && baseType !== "piece" ? "cooked" : baseType;
+  const dryWeight = cookedWeightValue(data.get("cookedDryWeight"), 100);
+  const readyWeight = cookedWeightValue(data.get("cookedReadyWeight"), 100);
+  const useCooking = baseType === "weight" && productCookingOpen;
+  const productType = useCooking ? "cooked" : baseType;
   const product = {
     id: saveMode === "diary" ? `temp-${uid()}` : uid(),
     name: String(data.get("name") || "").trim(),
@@ -2279,8 +2283,8 @@ function addProduct(form) {
     fat: number(data.get("fat")),
     carbs: number(data.get("carbs")),
     cookedBaseType: productType === "cooked" ? baseType : "",
-    cookedDryWeight: readyWeight > 0 ? 100 : 0,
-    cookedReadyWeight: readyWeight
+    cookedDryWeight: productType === "cooked" ? dryWeight : 0,
+    cookedReadyWeight: productType === "cooked" ? readyWeight : 0
   };
   if (!product.name) return toast("Введите название");
   if (saveMode === "diary") {
@@ -4546,23 +4550,29 @@ function productNutritionFields(draft = {}) {
 
 function productCookingSection(draft = {}, type = "weight") {
   if (type !== "weight") return "";
-  const ready = draft.cookedReadyWeight ?? "";
+  const dry = draft.cookedDryWeight || "100";
+  const ready = draft.cookedReadyWeight || "100";
   return `<section class="field full product-cooking ${productCookingOpen ? "open" : ""}">
     <button class="product-cooking-head" type="button" data-action="toggle-product-cooking" aria-expanded="${productCookingOpen}">
       <span>После приготовления</span>
       <i>${icons.chevron}</i>
     </button>
     <div class="product-cooking-body">
-      <input type="hidden" name="cookedDryWeight" value="100">
-      <div class="product-cooking-row">
-        <span class="product-cooking-source">100 г сухого</span>
-        <b aria-hidden="true">→</b>
-        <label class="product-cooking-ready">
+      <div class="product-cooking-stack">
+        <label class="field product-cooking-field">
+          <span>Сухой вес</span>
           <span class="product-cooking-input">
-            <input name="cookedReadyWeight" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(ready)}" aria-label="Вес после приготовления">
+            <input name="cookedDryWeight" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(dry)}" aria-label="Сухой вес" data-select-on-focus>
             <em>г</em>
           </span>
-          <span>готового</span>
+        </label>
+        <b class="product-cooking-arrow" aria-hidden="true">↓</b>
+        <label class="field product-cooking-field">
+          <span>После приготовления</span>
+          <span class="product-cooking-input">
+            <input name="cookedReadyWeight" type="number" min="1" step="1" inputmode="numeric" value="${escapeHtml(ready)}" aria-label="Вес после приготовления" data-select-on-focus>
+            <em>г</em>
+          </span>
         </label>
       </div>
       <p>Оставьте поле пустым, если продукт не меняет вес после приготовления.</p>

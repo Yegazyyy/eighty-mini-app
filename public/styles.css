@@ -4357,7 +4357,7 @@ button:disabled {
 
 .product-cooking-body {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   max-height: 0;
   padding: 0 12px;
   opacity: 0;
@@ -4366,70 +4366,62 @@ button:disabled {
 }
 
 .product-cooking.open .product-cooking-body {
-  max-height: 82px;
-  padding: 0 12px 10px;
+  max-height: 190px;
+  padding: 0 12px 12px;
   opacity: 1;
   transform: translateY(0);
 }
 
-.product-cooking-row {
+.product-cooking-stack {
   width: 100%;
   max-width: 100%;
   min-width: 0;
-  overflow: hidden;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr);
-  align-items: center;
-  gap: 7px;
-  color: var(--ink);
+  gap: 6px;
 }
 
-.product-cooking-source,
-.product-cooking-ready {
+.product-cooking-field {
   min-width: 0;
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 680;
-  line-height: 1.1;
-  white-space: nowrap;
+  display: grid;
+  gap: 6px;
 }
 
+.product-cooking-field > span:first-child,
 .product-cooking p {
   color: var(--muted);
-  font-size: 10.8px;
-  font-weight: 560;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1.25;
 }
 
-.product-cooking-row b {
-  align-self: center;
+.product-cooking-field > span:first-child {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-cooking-arrow {
   color: var(--green);
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 720;
   line-height: 1;
   text-align: center;
-}
-
-.product-cooking-ready {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 5px;
-  cursor: text;
+  margin: -1px 0;
 }
 
 .product-cooking-input {
   min-width: 0;
   display: inline-grid;
-  grid-template-columns: minmax(32px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  flex: 0 0 auto;
-  width: 58px;
-  min-height: 32px;
-  padding: 0 7px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.6);
+  border-radius: 14px;
+  background: var(--soft);
+  cursor: text;
   transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
 }
 
@@ -4441,19 +4433,19 @@ button:disabled {
 
 .product-cooking-input input {
   width: 100%;
-  min-height: 30px;
+  min-height: 44px;
   padding: 0;
   border: 0;
   background: transparent;
-  font-size: 15px;
-  font-weight: 760;
-  text-align: center;
+  font-size: 16px;
+  font-weight: 680;
+  text-align: left;
 }
 
 .product-cooking-input em {
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 640;
+  font-size: 12px;
+  font-weight: 720;
   font-style: normal;
   pointer-events: none;
 }
@@ -5368,23 +5360,8 @@ button:disabled {
     font-size: 12px;
   }
 
-  .product-cooking-row {
-    grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr);
-    gap: 6px;
-  }
-
-  .product-cooking-source,
-  .product-cooking-ready {
-    font-size: 12px;
-  }
-
-  .product-cooking-input {
-    width: 54px;
-    padding: 0 6px;
-  }
-
   .product-cooking-input input {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .profile-fields {
@@ -6320,8 +6297,7 @@ body {
 
 :root[data-theme="dark"] .product-type-segments label:not(.active),
 :root[data-theme="dark"] .product-nutrition-grid .field > span,
-:root[data-theme="dark"] .product-cooking-source,
-:root[data-theme="dark"] .product-cooking-ready,
+:root[data-theme="dark"] .product-cooking-field > span:first-child,
 :root[data-theme="dark"] .product-cooking-input em,
 :root[data-theme="dark"] .product-cooking p,
 :root[data-theme="dark"] .field-hint,
