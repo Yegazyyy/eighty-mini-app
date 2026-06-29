@@ -348,6 +348,7 @@ function updateKeyboardMode() {
 
   setKeyboardMode(focused && (keyboardVisible || Boolean(tg) || window.innerWidth <= 820), keyboardOffset);
   activateTabIndicatorMotion();
+  if (window.scrollX) window.scrollTo({ top: window.scrollY, left: 0, behavior: "auto" });
   if (focused) scheduleFocusedControlScroll(document.activeElement, 80);
 }
 
@@ -361,7 +362,17 @@ function scrollFocusedControlIntoView(control) {
   const modal = control.closest(".modal-card");
   const target = focusScrollTarget(control);
   if (!modal) {
-    target.scrollIntoView({ block: "center", inline: "nearest", behavior: "smooth" });
+    const rect = target.getBoundingClientRect();
+    const keyboardOffset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--keyboard-offset")) || 0;
+    const viewportTop = 12;
+    const viewportBottom = Math.max(0, window.innerHeight - keyboardOffset - 16);
+    let delta = 0;
+
+    if (rect.top < viewportTop) delta = rect.top - viewportTop;
+    else if (rect.bottom > viewportBottom) delta = rect.bottom - viewportBottom;
+
+    if (delta) window.scrollBy({ top: delta, left: 0, behavior: "smooth" });
+    if (window.scrollX) window.scrollTo({ top: window.scrollY, left: 0, behavior: "auto" });
     return;
   }
 
@@ -381,6 +392,12 @@ function scrollFocusedControlIntoView(control) {
   else if (targetRect.bottom > bottomLimit) delta = targetRect.bottom - bottomLimit;
 
   if (delta) modal.scrollBy({ top: delta, behavior: "smooth" });
+}
+
+function restoreViewportPosition(top = window.scrollY || document.documentElement.scrollTop || 0) {
+  requestAnimationFrame(() => {
+    window.scrollTo({ top: Math.max(0, top), left: 0, behavior: "auto" });
+  });
 }
 
 function scheduleFocusedControlScroll(control = document.activeElement, delay = 120) {
@@ -1727,7 +1744,7 @@ function openProductCreateWithDraft(draft = null) {
     fat: "",
     carbs: "",
     cookedDryWeight: "",
-    cookedReadyWeight: "0",
+    cookedReadyWeight: "",
     saveMode: "library",
     diaryAmount: "",
     ...(draft || {})
@@ -1748,7 +1765,7 @@ function syncProductCreateDraft(form) {
     fat: data.get("fat") || "",
     carbs: data.get("carbs") || "",
     cookedDryWeight: data.get("cookedDryWeight") || "100",
-    cookedReadyWeight: data.get("cookedReadyWeight") ?? "0",
+    cookedReadyWeight: data.get("cookedReadyWeight") ?? "",
     saveMode: data.get("saveMode") || "library",
     diaryAmount: data.get("diaryAmount") || ""
   };
@@ -4528,12 +4545,8 @@ function productNutritionFields(draft = {}) {
 }
 
 function productCookingSection(draft = {}, type = "weight") {
-  if (type === "piece") return "";
-  const volume = type === "volume";
-  const unit = volume ? "мл" : "г";
-  const source = volume ? "100 мл" : "100 г сухого продукта";
-  const target = volume ? "мл" : "г готового продукта";
-  const ready = draft.cookedReadyWeight ?? "0";
+  if (type !== "weight") return "";
+  const ready = draft.cookedReadyWeight ?? "";
   return `<section class="field full product-cooking ${productCookingOpen ? "open" : ""}">
     <button class="product-cooking-head" type="button" data-action="toggle-product-cooking" aria-expanded="${productCookingOpen}">
       <span>После приготовления</span>
@@ -4542,14 +4555,17 @@ function productCookingSection(draft = {}, type = "weight") {
     <div class="product-cooking-body">
       <input type="hidden" name="cookedDryWeight" value="100">
       <div class="product-cooking-row">
-        <span>${source}</span>
-        <b>→</b>
-        <label>
-          <input name="cookedReadyWeight" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(ready || "0")}">
-          <em>${target}</em>
+        <span class="product-cooking-source">100 г сухого</span>
+        <b aria-hidden="true">→</b>
+        <label class="product-cooking-ready">
+          <span class="product-cooking-input">
+            <input name="cookedReadyWeight" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(ready)}" aria-label="Вес после приготовления">
+            <em>г</em>
+          </span>
+          <span>готового</span>
         </label>
       </div>
-      <p>0 означает, что коэффициент приготовления не используется.</p>
+      <p>Оставьте поле пустым, если продукт не меняет вес после приготовления.</p>
     </div>
   </section>`;
 }
@@ -5918,8 +5934,10 @@ app.addEventListener("click", async (event) => {
   if (button.dataset.action === "toggle-product-cooking") {
     const form = button.closest('form[data-form="product"]');
     if (form) syncProductCreateDraft(form);
+    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
     productCookingOpen = !productCookingOpen;
     render();
+    restoreViewportPosition(scrollTop);
     return;
   }
   if (button.dataset.action === "product-amount-info") {
@@ -6448,9 +6466,11 @@ app.addEventListener("change", (event) => {
 
   const productForm = target.closest('form[data-form="product"]');
   if (productForm && ["type", "saveMode"].includes(target.name)) {
+    const scrollTop = window.scrollY || document.documentElement.scrollTop || 0;
     syncProductCreateDraft(productForm);
-    if (target.name === "type" && target.value === "piece") productCookingOpen = false;
+    if (target.name === "type" && target.value !== "weight") productCookingOpen = false;
     render();
+    restoreViewportPosition(scrollTop);
     return;
   }
 
