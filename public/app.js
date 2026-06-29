@@ -159,7 +159,8 @@ const labels = {
     }
   },
   productTypes: {
-    weight: "На 100 грамм",
+    weight: "На 100 г",
+    volume: "На 100 мл",
     cooked: "После приготовления",
     piece: "Поштучно"
   }
@@ -190,6 +191,7 @@ const icons = {
   profile: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M5 21a7 7 0 0 1 14 0"/></svg>`,
   prev: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m15 18-6-6 6-6"/></svg>`,
   next: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m9 18 6-6-6-6"/></svg>`,
+  chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m6 9 6 6 6-6"/></svg>`,
   trash: `<span class="delete-minus" aria-hidden="true">−</span>`
 };
 
@@ -228,6 +230,8 @@ let addCreateMenuOpen = false;
 let addFoodSource = "mine";
 let addFoodQuery = "";
 let productCreateDraft = null;
+let productCookingOpen = false;
+let productAmountInfoOpen = false;
 let barcodeScannerOpen = false;
 let barcodeScannerBusy = false;
 let barcodeScannerMessage = "";
@@ -301,6 +305,7 @@ function hasModalOpen() {
     waterHistoryOpen ||
     profileDetailsOpen ||
     nutritionInfoOpen ||
+    productAmountInfoOpen ||
     eightyFoodDialog ||
     barcodeScannerOpen ||
     mealTemplateEditor ||
@@ -1052,7 +1057,7 @@ function targetValue(value, unit = "") {
 function calcProduct(product, amount) {
   const qty = number(amount, 0);
   let factor = qty;
-  if (product.type === "weight") factor = qty / 100;
+  if (product.type === "weight" || product.type === "volume") factor = qty / 100;
   if (product.type === "cooked") {
     const dry = cookedWeightValue(product.cookedDryWeight, 100);
     const ready = cookedWeightValue(product.cookedReadyWeight, 230);
@@ -1075,6 +1080,7 @@ function diaryProductSnapshot(product) {
     protein: number(product.protein),
     fat: number(product.fat),
     carbs: number(product.carbs),
+    cookedBaseType: product.cookedBaseType || "",
     cookedDryWeight: cookedWeightValue(product.cookedDryWeight, 100),
     cookedReadyWeight: cookedWeightValue(product.cookedReadyWeight, product.type === "cooked" ? 230 : 100),
     temporary: Boolean(product.temporary)
@@ -1083,13 +1089,14 @@ function diaryProductSnapshot(product) {
 
 function addDiaryEntry(product, amount, meal = entryDraft.meal || "breakfast", options = {}) {
   const snapshot = options.temporary ? diaryProductSnapshot({ ...product, temporary: true }) : null;
+  const entryUnit = product.type === "piece" ? "шт." : product.type === "volume" || product.cookedBaseType === "volume" ? "мл" : "г";
   entriesForDate().push({
     id: uid(),
     meal,
     productId: product.id,
     label: product.name,
     amount,
-    unit: product.type === "piece" ? "шт." : "г",
+    unit: entryUnit,
     nutrients: calcProduct(product, amount),
     ...(snapshot ? { productSnapshot: snapshot } : {}),
     createdAt: new Date().toISOString()
@@ -1483,10 +1490,16 @@ function setAddPage(page) {
     eightyCategoryId = "";
     addFoodQuery = "";
     productCreateDraft = null;
+    productCookingOpen = false;
+    productAmountInfoOpen = false;
     entryDraft = { meal: entryDraft.meal || "breakfast", items: {} };
     dishBuilder = null;
   }
-  if (page === "product") productCreateDraft = null;
+  if (page === "product") {
+    productCreateDraft = null;
+    productCookingOpen = false;
+    productAmountInfoOpen = false;
+  }
   if (page === "ration") addFoodSource = "mine";
   if (page === "template") templateSourceDate = clampTemplateDate(templateSourceDate || todayIso());
   if (page === "dish" && !dishBuilder) dishBuilder = { name: "", query: "", ingredients: [] };
@@ -1571,6 +1584,7 @@ function closeModal(name) {
   if (!name || name === "water") waterHistoryOpen = false;
   if (!name || name === "profile-details") profileDetailsOpen = false;
   if (!name || name === "nutrition-info") nutritionInfoOpen = false;
+  if (!name || name === "product-amount-info") productAmountInfoOpen = false;
   if (!name || name === "reminders") remindersOpen = false;
   if (!name || name === "theme-settings") themeSettingsOpen = false;
   if (!name || name === "theme-menu") themeMenuOpen = false;
@@ -1713,7 +1727,7 @@ function openProductCreateWithDraft(draft = null) {
     fat: "",
     carbs: "",
     cookedDryWeight: "",
-    cookedReadyWeight: "",
+    cookedReadyWeight: "0",
     saveMode: "library",
     diaryAmount: "",
     ...(draft || {})
@@ -1721,6 +1735,23 @@ function openProductCreateWithDraft(draft = null) {
   addCreateMenuOpen = false;
   addPage = "product";
   render();
+}
+
+function syncProductCreateDraft(form) {
+  const data = new FormData(form);
+  productCreateDraft = {
+    ...(productCreateDraft || {}),
+    name: data.get("name") || "",
+    type: data.get("type") || "weight",
+    calories: data.get("calories") || "",
+    protein: data.get("protein") || "",
+    fat: data.get("fat") || "",
+    carbs: data.get("carbs") || "",
+    cookedDryWeight: data.get("cookedDryWeight") || "100",
+    cookedReadyWeight: data.get("cookedReadyWeight") ?? "0",
+    saveMode: data.get("saveMode") || "library",
+    diaryAmount: data.get("diaryAmount") || ""
+  };
 }
 
 function formatDraftNumber(value) {
@@ -1852,6 +1883,9 @@ function resetTransientUiState() {
   addCreateMenuOpen = false;
   addFoodSource = "mine";
   addFoodQuery = "";
+  productCreateDraft = null;
+  productCookingOpen = false;
+  productAmountInfoOpen = false;
   mealTemplatesVisible = true;
   templateSourceDate = todayIso();
   mealTemplateEditor = null;
@@ -2018,6 +2052,8 @@ function defaultProductAmount(product) {
 function productAmountLabel(product) {
   if (product.kind === "dish") return "Вес порции, г";
   if (product.type === "piece") return "Количество штук";
+  if (product.type === "volume") return "Объём, мл";
+  if (product.type === "cooked" && product.cookedBaseType === "volume") return "Сколько мл готового продукта использовано";
   if (product.type === "cooked") return "Сколько граммов готового продукта съедено";
   return "Вес, г";
 }
@@ -2027,7 +2063,9 @@ function productAmountPlaceholder(product) {
 }
 
 function productAmountUnit(product) {
-  return product?.type === "piece" ? "шт" : "г";
+  if (product?.type === "piece") return "шт";
+  if (product?.type === "volume" || product?.cookedBaseType === "volume") return "мл";
+  return "г";
 }
 
 function productAmountStep(product) {
@@ -2046,9 +2084,14 @@ function cookedWeightValue(value, fallback) {
   return Math.max(1, number(value, fallback));
 }
 
+function cookingReadyValue(value) {
+  return Math.max(0, number(value, 0));
+}
+
 function cookedRatioText(product) {
   const dry = cookedWeightValue(product?.cookedDryWeight, 100);
   const ready = cookedWeightValue(product?.cookedReadyWeight, 230);
+  if (product?.cookedBaseType === "volume") return `${round(dry, 1)} мл → ${round(ready, 1)} мл`;
   return `${round(dry, 1)} г сухого → ${round(ready, 1)} г готового`;
 }
 
@@ -2060,6 +2103,7 @@ function productTypeLabel(product) {
 function productLibraryTypeLabel(product) {
   if (product?.type === "cooked") return cookedRatioText(product);
   if (product?.type === "piece") return labels.productTypes.piece;
+  if (product?.type === "volume") return "100 мл";
   return "100 г";
 }
 
@@ -2082,7 +2126,7 @@ function builtinBadge(product) {
 }
 
 function formatCartAmount(product, amount) {
-  const unit = product.type === "piece" ? "шт" : "г";
+  const unit = productAmountUnit(product);
   if (number(amount, 0) <= 0) return `— ${unit}`;
   return `${round(amount, 1)} ${unit}`;
 }
@@ -2206,16 +2250,20 @@ function deleteEntry(id) {
 function addProduct(form) {
   const data = new FormData(form);
   const saveMode = data.get("saveMode") || "library";
+  const baseType = data.get("type") || "weight";
+  const readyWeight = cookingReadyValue(data.get("cookedReadyWeight"));
+  const productType = readyWeight > 0 && baseType !== "piece" ? "cooked" : baseType;
   const product = {
     id: saveMode === "diary" ? `temp-${uid()}` : uid(),
     name: String(data.get("name") || "").trim(),
-    type: data.get("type"),
+    type: productType,
     calories: number(data.get("calories")),
     protein: number(data.get("protein")),
     fat: number(data.get("fat")),
     carbs: number(data.get("carbs")),
-    cookedDryWeight: cookedWeightValue(data.get("cookedDryWeight"), 100),
-    cookedReadyWeight: cookedWeightValue(data.get("cookedReadyWeight"), 230)
+    cookedBaseType: productType === "cooked" ? baseType : "",
+    cookedDryWeight: readyWeight > 0 ? 100 : 0,
+    cookedReadyWeight: readyWeight
   };
   if (!product.name) return toast("Введите название");
   if (saveMode === "diary") {
@@ -2226,6 +2274,8 @@ function addProduct(form) {
     product.temporary = true;
     addDiaryEntry(product, amount, entryDraft.meal || "breakfast", { temporary: true });
     productCreateDraft = null;
+    productCookingOpen = false;
+    productAmountInfoOpen = false;
     addPage = "home";
     addFoodQuery = "";
     blurActive();
@@ -2236,6 +2286,8 @@ function addProduct(form) {
   }
   state.products.unshift(product);
   productCreateDraft = null;
+  productCookingOpen = false;
+  productAmountInfoOpen = false;
   blurActive();
   persist();
   render();
@@ -2850,6 +2902,7 @@ function render() {
     ${waterHistoryOpen ? waterHistoryModal() : ""}
     ${profileDetailsOpen ? profileDetailsModal(targets) : ""}
     ${nutritionInfoOpen ? nutritionInfoModal(targets) : ""}
+    ${productAmountInfoOpen ? productAmountInfoModal() : ""}
     ${eightyFoodDialog ? eightyFoodModal() : ""}
     ${barcodeScannerOpen ? barcodeScannerModal() : ""}
     ${mealTemplateEditor ? mealTemplateModal() : ""}
@@ -3685,10 +3738,11 @@ function addPageContent() {
   return addHomePage();
 }
 
-function addBackHeader(title, backPage = "home") {
+function addBackHeader(title, backPage = "home", subtitle = "") {
   return `<header class="screen-header add-subpage-head">
     <button class="back-link" type="button" data-add-page="${backPage}">← Назад</button>
     <h1>${title}</h1>
+    ${subtitle ? `<p>${subtitle}</p>` : ""}
   </header>`;
 }
 
@@ -4411,30 +4465,93 @@ function productChoiceCard(product) {
 
 function productSaveModeFields(draft = {}) {
   const mode = draft.saveMode || "library";
-  const mealName = labels.meals[entryDraft.meal]?.short || "приём пищи";
-  return `<div class="field full product-save-mode">
-    <label>Как добавить продукт</label>
-    <div class="choice-card-grid compact">
+  const type = draft.type || "weight";
+  const diaryPlaceholder = type === "volume" ? "Например, 330" : type === "piece" ? "Например, 1" : "Например, 180";
+  const diaryStep = type === "piece" ? "1" : "0.1";
+  const diaryInputMode = type === "piece" ? "numeric" : "decimal";
+  return `<div class="field full product-save-mode create-product-section">
+    <label>Куда добавить продукт</label>
+    <div class="choice-card-grid compact create-product-save-grid">
       <label class="choice-card ${mode === "library" ? "selected" : ""}">
         <input type="radio" name="saveMode" value="library" ${mode === "library" ? "checked" : ""}>
         <span>📌</span>
         <strong>Сохранить в моих продуктах</strong>
-        <em>Будет доступен для повторного использования</em>
+        <em>Будет доступен всегда</em>
         <b>✓</b>
       </label>
       <label class="choice-card ${mode === "diary" ? "selected" : ""}">
         <input type="radio" name="saveMode" value="diary" ${mode === "diary" ? "checked" : ""}>
         <span>🕒</span>
         <strong>Добавить только в дневник</strong>
-        <em>Только в ${escapeHtml(mealName)}, без сохранения в базу</em>
+        <em>Не сохранять в базе</em>
         <b>✓</b>
       </label>
     </div>
   </div>
-  <div class="field full temporary-amount-field">
-    <label>Количество для дневника</label>
-    <input name="diaryAmount" type="number" min="1" step="0.1" inputmode="decimal" enterkeyhint="done" placeholder="Например, 180" value="${escapeHtml(draft.diaryAmount || "")}">
+  <div class="field full temporary-amount-field ${mode === "diary" ? "visible" : ""}">
+    <div class="field-label-row">
+      <label>Количество для дневника</label>
+      <button class="info-dot-btn" type="button" data-action="product-amount-info" aria-label="Для чего нужно количество?">ⓘ</button>
+    </div>
+    <input name="diaryAmount" type="number" min="1" step="${diaryStep}" inputmode="${diaryInputMode}" enterkeyhint="done" placeholder="${diaryPlaceholder}" value="${escapeHtml(draft.diaryAmount || "")}">
+    <span class="field-hint">Можно изменить позже в дневнике</span>
   </div>`;
+}
+
+function productTypeSegments(type) {
+  const items = [
+    ["weight", "На 100 г"],
+    ["volume", "На 100 мл"],
+    ["piece", "Поштучно"]
+  ];
+  return `<div class="field full create-product-section">
+    <label>Тип продукта</label>
+    <div class="product-type-segments" role="radiogroup" aria-label="Тип продукта">
+      ${items.map(([id, label]) => `<label class="${type === id ? "active" : ""}">
+        <input type="radio" name="type" value="${id}" ${type === id ? "checked" : ""}>
+        <span>${label}</span>
+      </label>`).join("")}
+    </div>
+  </div>`;
+}
+
+function productNutritionFields(draft = {}) {
+  return `<div class="field full create-product-section">
+    <label>Пищевая ценность</label>
+    <div class="product-nutrition-grid">
+      <div class="field"><label>Ккал</label><input name="calories" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="0" value="${escapeHtml(draft.calories || "")}"><span>ккал</span></div>
+      <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="0" value="${escapeHtml(draft.protein || "")}"><span>г</span></div>
+      <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="0" value="${escapeHtml(draft.fat || "")}"><span>г</span></div>
+      <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="0" value="${escapeHtml(draft.carbs || "")}"><span>г</span></div>
+    </div>
+  </div>`;
+}
+
+function productCookingSection(draft = {}, type = "weight") {
+  if (type === "piece") return "";
+  const volume = type === "volume";
+  const unit = volume ? "мл" : "г";
+  const source = volume ? "100 мл" : "100 г сухого продукта";
+  const target = volume ? "мл" : "г готового продукта";
+  const ready = draft.cookedReadyWeight ?? "0";
+  return `<section class="field full product-cooking ${productCookingOpen ? "open" : ""}">
+    <button class="product-cooking-head" type="button" data-action="toggle-product-cooking" aria-expanded="${productCookingOpen}">
+      <span>После приготовления</span>
+      <i>${icons.chevron}</i>
+    </button>
+    <div class="product-cooking-body">
+      <input type="hidden" name="cookedDryWeight" value="100">
+      <div class="product-cooking-row">
+        <span>${source}</span>
+        <b>→</b>
+        <label>
+          <input name="cookedReadyWeight" type="number" min="0" step="1" inputmode="numeric" value="${escapeHtml(ready || "0")}">
+          <em>${target}</em>
+        </label>
+      </div>
+      <p>0 означает, что коэффициент приготовления не используется.</p>
+    </div>
+  </section>`;
 }
 
 function manualProductForm() {
@@ -4461,21 +4578,39 @@ function createProductPage() {
   const draft = productCreateDraft || {};
   const type = draft.type || "weight";
   return `
-    ${addBackHeader("Создать продукт")}
-    <div class="panel">
-      <form class="form-grid ${type === "cooked" ? "cooked-mode" : ""}" data-form="product">
-        <div class="field full"><label>Название</label><input name="name" value="${escapeHtml(draft.name || "")}" placeholder="Спагетти" enterkeyhint="next" required></div>
-        <div class="field full"><label>Тип продукта</label><select name="type">${Object.entries(labels.productTypes).map(([id, label]) => `<option value="${id}" ${id === type ? "selected" : ""}>${label}</option>`).join("")}</select></div>
-        <div class="field"><label>Калории</label><input name="calories" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="ккал" value="${escapeHtml(draft.calories || "")}"></div>
-        <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г" value="${escapeHtml(draft.protein || "")}"></div>
-        <div class="field"><label>Жиры</label><input name="fat" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г" value="${escapeHtml(draft.fat || "")}"></div>
-        <div class="field"><label>Углеводы</label><input name="carbs" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="г" value="${escapeHtml(draft.carbs || "")}"></div>
-        <div class="field cooked-field"><label>Сухой вес, г</label><input name="cookedDryWeight" type="number" step="1" inputmode="numeric" placeholder="0" value="${escapeHtml(draft.cookedDryWeight || "")}"></div>
-        <div class="field cooked-field"><label>Вес после приготовления, г</label><input name="cookedReadyWeight" type="number" step="1" inputmode="numeric" placeholder="0" value="${escapeHtml(draft.cookedReadyWeight || "")}"></div>
+    ${addBackHeader("Создать продукт", "home", "Заполните информацию о продукте")}
+    <div class="panel create-product-panel">
+      <form class="form-grid create-product-form" data-form="product">
+        <div class="field full create-product-section"><label>Название продукта</label><input name="name" value="${escapeHtml(draft.name || "")}" placeholder="Спагетти" enterkeyhint="next" required></div>
+        ${productTypeSegments(type)}
+        ${productNutritionFields(draft)}
+        ${productCookingSection(draft, type)}
         ${productSaveModeFields(draft)}
         <div class="field full"><button class="primary-btn full-btn" type="submit">${(draft.saveMode || "library") === "diary" ? "Добавить в дневник" : "Сохранить продукт"}</button></div>
       </form>
     </div>`;
+}
+
+function productAmountInfoModal() {
+  return `<div class="modal-backdrop product-info-backdrop" data-modal-close="product-amount-info">
+    <div class="modal-card product-info-modal" role="dialog" aria-modal="true" aria-label="Для чего нужно количество?">
+      <div class="modal-head">
+        <div>
+          <span>?</span>
+          <h3>Для чего нужно количество?</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="close-product-amount-info">×</button>
+      </div>
+      <div class="product-info-copy">
+        <p>Количество используется только при добавлении продукта сразу в дневник.</p>
+        <p>Например: вы создаёте новый продукт и сразу хотите добавить его в сегодняшний рацион. Укажите количество (например 180 г или 330 мл), чтобы приложение сразу рассчитало КБЖУ.</p>
+        <p>Если вы просто сохраняете продукт в свою базу для будущего использования, это поле можно оставить пустым. При следующем использовании количество будет указано уже во время добавления продукта в дневник.</p>
+      </div>
+      <div class="modal-actions modal-actions-single">
+        <button class="primary-btn full-btn" type="button" data-action="close-product-amount-info">Понятно</button>
+      </div>
+    </div>
+  </div>`;
 }
 
 function dishBuilderPanel() {
@@ -5780,6 +5915,25 @@ app.addEventListener("click", async (event) => {
   const button = event.target.closest("button");
   if (!button) return;
   if (accountDeleteBusy) return;
+  if (button.dataset.action === "toggle-product-cooking") {
+    const form = button.closest('form[data-form="product"]');
+    if (form) syncProductCreateDraft(form);
+    productCookingOpen = !productCookingOpen;
+    render();
+    return;
+  }
+  if (button.dataset.action === "product-amount-info") {
+    const form = button.closest('form[data-form="product"]');
+    if (form) syncProductCreateDraft(form);
+    productAmountInfoOpen = true;
+    render();
+    return;
+  }
+  if (button.dataset.action === "close-product-amount-info") {
+    productAmountInfoOpen = false;
+    render();
+    return;
+  }
   if (button.dataset.targetChoice) {
     const form = button.closest('form[data-form="targets"]');
     const input = form?.querySelector(`[name="${button.dataset.targetChoice}"]`);
@@ -6293,14 +6447,11 @@ app.addEventListener("change", (event) => {
   if (entryForm && target.dataset.cartAmount) return;
 
   const productForm = target.closest('form[data-form="product"]');
-  if (productForm && target.name === "type") productForm.classList.toggle("cooked-mode", target.value === "cooked");
-  if (productForm && target.name === "saveMode") {
-    const mode = target.value;
-    productForm.querySelectorAll(".product-save-mode .choice-card").forEach((card) => {
-      card.classList.toggle("selected", card.querySelector("input")?.checked);
-    });
-    const submit = productForm.querySelector('button[type="submit"]');
-    if (submit) submit.textContent = mode === "diary" ? "Добавить в дневник" : "Сохранить продукт";
+  if (productForm && ["type", "saveMode"].includes(target.name)) {
+    syncProductCreateDraft(productForm);
+    if (target.name === "type" && target.value === "piece") productCookingOpen = false;
+    render();
+    return;
   }
 
   const productEditForm = target.closest('form[data-form="product-edit"]');
@@ -6338,6 +6489,8 @@ app.addEventListener("change", (event) => {
 
 app.addEventListener("input", (event) => {
   const target = event.target;
+  const productForm = target.closest('form[data-form="product"]');
+  if (productForm) syncProductCreateDraft(productForm);
   if (target.matches("[data-favorites-query]")) {
     favoritesQuery = target.value;
     const cursor = target.selectionStart;

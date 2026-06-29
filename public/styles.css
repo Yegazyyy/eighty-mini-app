@@ -4159,6 +4159,322 @@ button:disabled {
   color: #fff;
 }
 
+.create-product-panel {
+  padding: 14px;
+  border-radius: 20px;
+}
+
+.create-product-form {
+  gap: 12px;
+}
+
+.create-product-form .field {
+  gap: 6px;
+}
+
+.create-product-form .field label,
+.create-product-section > label,
+.field-label-row label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 760;
+}
+
+.create-product-form input:not([type="radio"]):not([type="hidden"]) {
+  min-height: 46px;
+  padding-inline: 14px;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 680;
+}
+
+.create-product-section {
+  display: grid;
+  gap: 8px;
+}
+
+.product-type-segments {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: 46px;
+  padding: 2px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--soft);
+}
+
+.product-type-segments label {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-type-segments input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.product-type-segments span {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 780;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.product-type-segments label.active {
+  background: linear-gradient(145deg, #25d366, #16a34a);
+  color: #fff;
+  box-shadow: 0 8px 18px rgba(22, 163, 74, 0.22);
+}
+
+.product-nutrition-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.product-nutrition-grid .field {
+  position: relative;
+}
+
+.product-nutrition-grid input {
+  padding-right: 48px;
+}
+
+.product-nutrition-grid .field > span {
+  position: absolute;
+  right: 14px;
+  bottom: 15px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 720;
+  pointer-events: none;
+}
+
+.product-cooking {
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--soft);
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.product-cooking.open {
+  border-color: rgba(37, 211, 102, 0.28);
+  box-shadow: 0 10px 26px rgba(18, 130, 71, 0.1);
+}
+
+.product-cooking-head {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.product-cooking-head span {
+  font-size: 14px;
+  font-weight: 820;
+}
+
+.product-cooking-head i {
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  transition: transform 0.22s ease, color 0.22s ease;
+}
+
+.product-cooking-head svg {
+  width: 18px;
+  height: 18px;
+}
+
+.product-cooking.open .product-cooking-head i {
+  transform: rotate(180deg);
+  color: var(--green);
+}
+
+.product-cooking-body {
+  display: grid;
+  gap: 10px;
+  max-height: 0;
+  padding: 0 14px;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: max-height 0.24s ease, padding 0.24s ease, opacity 0.18s ease, transform 0.18s ease;
+}
+
+.product-cooking.open .product-cooking-body {
+  max-height: 180px;
+  padding: 0 14px 14px;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.product-cooking-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(96px, 0.9fr);
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+}
+
+.product-cooking-row > span,
+.product-cooking-row em,
+.product-cooking p {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 680;
+  line-height: 1.3;
+}
+
+.product-cooking-row b {
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.product-cooking-row label {
+  position: relative;
+  display: block;
+}
+
+.product-cooking-row input {
+  min-height: 42px;
+  padding-right: 56px;
+}
+
+.product-cooking-row em {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-style: normal;
+  pointer-events: none;
+}
+
+.product-cooking p {
+  margin: 0;
+}
+
+.create-product-save-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.create-product-save-grid .choice-card {
+  min-height: 68px;
+  grid-template-columns: 30px minmax(0, 1fr) 18px;
+  padding: 9px;
+  border-radius: 15px;
+  transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.16s ease;
+}
+
+.create-product-save-grid .choice-card:active {
+  transform: scale(0.985);
+}
+
+.create-product-save-grid .choice-card span {
+  width: 30px;
+  height: 30px;
+  border-radius: 11px;
+  font-size: 17px;
+}
+
+.create-product-save-grid .choice-card strong {
+  font-size: 12px;
+  line-height: 1.18;
+}
+
+.create-product-save-grid .choice-card em {
+  font-size: 10.5px;
+}
+
+.temporary-amount-field {
+  display: grid;
+  max-height: 0;
+  margin-top: -6px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(-6px);
+  pointer-events: none;
+  transition: max-height 0.22s ease, margin 0.22s ease, opacity 0.18s ease, transform 0.18s ease;
+}
+
+.temporary-amount-field.visible {
+  max-height: 118px;
+  margin-top: 0;
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.info-dot-btn {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 640;
+  text-align: center;
+}
+
+.product-info-backdrop {
+  animation: fadeIn 0.18s ease both;
+}
+
+.product-info-modal {
+  max-width: 430px;
+  animation: sheetUp 0.22s var(--ease-out) both;
+}
+
+.product-info-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.product-info-copy p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 620;
+  line-height: 1.42;
+}
+
 .recalc-btn,
 .sticky-save {
   width: 100%;
@@ -4609,6 +4925,28 @@ button:disabled {
   }
 }
 
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes sheetUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @keyframes valueUpdate {
   from {
     opacity: 0.72;
@@ -4923,6 +5261,24 @@ button:disabled {
   .stat-grid,
   .target-grid {
     grid-template-columns: 1fr;
+  }
+
+  .create-product-form .product-nutrition-grid,
+  .create-product-form .create-product-save-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .create-product-panel {
+    padding: 12px;
+  }
+
+  .product-type-segments span {
+    font-size: 12px;
+  }
+
+  .product-cooking-row {
+    grid-template-columns: minmax(0, 1fr) auto minmax(86px, 0.95fr);
+    gap: 8px;
   }
 
   .profile-fields {
@@ -5846,6 +6202,28 @@ body {
 :root[data-theme="dark"] .choice-card.selected b {
   background: #25d366;
   color: #06110b;
+}
+
+:root[data-theme="dark"] .create-product-panel,
+:root[data-theme="dark"] .product-type-segments,
+:root[data-theme="dark"] .product-cooking,
+:root[data-theme="dark"] .info-dot-btn {
+  background: rgba(255, 255, 255, 0.055);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:root[data-theme="dark"] .product-type-segments label:not(.active),
+:root[data-theme="dark"] .product-nutrition-grid .field > span,
+:root[data-theme="dark"] .product-cooking-row > span,
+:root[data-theme="dark"] .product-cooking-row em,
+:root[data-theme="dark"] .product-cooking p,
+:root[data-theme="dark"] .field-hint,
+:root[data-theme="dark"] .product-info-copy p {
+  color: #aab7b0;
+}
+
+:root[data-theme="dark"] .product-cooking-head {
+  color: #f4faf6;
 }
 
 :root[data-theme="dark"] .onboarding-choice.selected em {
