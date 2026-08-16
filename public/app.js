@@ -5014,7 +5014,7 @@ function productRow(product) {
       ${macroBadges(product)}
     </button>
     <div class="library-card-actions">
-      <button class="icon-btn compact favorite-btn" type="button" data-toggle-product-favorite="${product.id}" aria-pressed="${favorite}" aria-label="${favorite ? "Убрать из избранного" : "Добавить в избранное"}" title="${favorite ? "Убрать из избранного" : "Добавить в избранное"}">★</button>
+      <button class="icon-btn compact favorite-btn" type="button" data-toggle-product-favorite="${product.id}" aria-pressed="${favorite}" aria-label="${favorite ? "Убрать из избранного" : "Добавить в избранное"}" title="${favorite ? "Убрать из избранного" : "Добавить в избранное"}">${favorite ? "★" : "☆"}</button>
       <button class="icon-btn compact delete-btn" type="button" data-confirm-delete-product="${product.id}" title="Удалить">${icons.trash}</button>
     </div>
   </div>`;

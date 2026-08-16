@@ -2835,15 +2835,17 @@ button:disabled {
 }
 
 .library-card-actions .favorite-btn {
-  background: rgba(255, 194, 0, 0.14);
-  color: #8b6d00;
+  background: transparent;
+  color: rgba(7, 27, 18, 0.28);
   font-size: 18px;
   font-weight: 900;
+  box-shadow: none;
 }
 
 .library-card-actions .favorite-btn[aria-pressed="true"] {
-  background: rgba(255, 194, 0, 0.24);
-  color: #d9a500;
+  background: rgba(255, 194, 0, 0.16);
+  color: #ffc400;
+  text-shadow: 0 1px 0 rgba(139, 109, 0, 0.18);
 }
 
 .library-card-main .library-card-meta {
@@ -6362,13 +6364,14 @@ body {
 }
 
 :root[data-theme="dark"] .library-card-actions .favorite-btn {
-  background: rgba(255, 194, 0, 0.14);
-  color: #ffd84f;
+  background: transparent;
+  color: rgba(244, 247, 245, 0.28);
+  box-shadow: none;
 }
 
 :root[data-theme="dark"] .library-card-actions .favorite-btn[aria-pressed="true"] {
-  background: rgba(255, 194, 0, 0.24);
-  color: #ffcf3f;
+  background: rgba(255, 194, 0, 0.18);
+  color: #ffd21f;
 }
 
 :root[data-theme="dark"] .onboarding-choice em,
