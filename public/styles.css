@@ -4180,6 +4180,15 @@ button:disabled {
   border-radius: 20px;
 }
 
+.create-product-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  touch-action: pan-y;
+  overscroll-behavior-x: contain;
+}
+
 .create-product-form {
   width: 100%;
   max-width: 100%;
@@ -4488,6 +4497,29 @@ button:disabled {
 
 .create-product-save-grid .choice-card em {
   font-size: 10.5px;
+}
+
+.create-product-page .product-type-segments span,
+.create-product-page .product-cooking-head span,
+.create-product-page .create-product-save-grid .choice-card strong,
+.create-product-page .create-product-save-grid .choice-card em,
+.create-product-page .field-label-row label {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.create-product-page .product-cooking-head span,
+.create-product-page .field-label-row label {
+  flex: 1 1 auto;
+}
+
+.create-product-page .product-cooking-head {
+  overflow: hidden;
+}
+
+.create-product-page .product-cooking-head span {
+  line-height: 1.15;
+  text-wrap: balance;
 }
 
 .temporary-amount-field {

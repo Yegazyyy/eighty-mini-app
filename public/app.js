@@ -433,6 +433,19 @@ function setupKeyboardBehavior() {
       if (!isFormControl(document.activeElement)) setKeyboardMode(false);
     }, 180);
   });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (event.pointerType !== "touch") return;
+    if (!isFormControl(document.activeElement)) return;
+    const target = event.target instanceof Element ? event.target : null;
+    if (!target) return;
+    if (target.closest(formControlSelector) || target.closest("button, a, label, [role='button'], [role='dialog'], .modal-backdrop")) return;
+    clearTimeout(keyboardTimer);
+    clearTimeout(keyboardScrollTimer);
+    blurActive();
+    setKeyboardMode(false);
+    if (window.scrollX) window.scrollTo({ top: window.scrollY, left: 0, behavior: "auto" });
+  }, true);
 }
 
 function handleSystemThemeChange() {
@@ -2403,7 +2416,7 @@ function deleteEightyFood(id) {
 function syncDishDraftFromForm(form) {
   if (libraryEditor?.kind !== "dish") return;
   const draft = libraryEditor.draft;
-  draft.name = String(form.querySelector('[name="name"]')?.value || "").trim();
+  draft.name = String(form.querySelector('[name="name"]')?.value || "");
   draft.ingredients = [...form.querySelectorAll("[data-dish-ingredient]")].map((row) => ({
     id: row.dataset.dishIngredient,
     productId: row.querySelector('[name="ingredientProduct"]')?.value || "",
@@ -2415,10 +2428,11 @@ function saveDishEdit(form) {
   syncDishDraftFromForm(form);
   const draft = libraryEditor?.draft;
   if (!draft) return;
-  if (!draft.name) return toast("Введите название");
+  const name = String(draft.name || "").trim();
+  if (!name) return toast("Введите название");
   const dish = state.dishes.find((item) => item.id === draft.id);
   if (dish) {
-    dish.name = draft.name;
+    dish.name = name;
     dish.ingredients = draft.ingredients.filter((ingredient) => ingredient.productId && number(ingredient.amount) > 0);
     refreshDiaryEntriesForDish(dish);
   }
@@ -2431,7 +2445,7 @@ function saveDishEdit(form) {
 
 function syncDishBuilderFromForm(form) {
   const draft = ensureDishBuilder();
-  draft.name = String(form.querySelector('[name="dishName"]')?.value || "").trim();
+  draft.name = String(form.querySelector('[name="dishName"]')?.value || "");
   draft.query = String(form.querySelector('[name="dishSearch"]')?.value || "");
   draft.ingredients = [...form.querySelectorAll("[data-builder-ingredient]")].map((row) => ({
     id: row.dataset.builderIngredient,
@@ -2443,12 +2457,13 @@ function syncDishBuilderFromForm(form) {
 function saveDishCreate(form) {
   syncDishBuilderFromForm(form);
   const draft = ensureDishBuilder();
-  if (!draft.name) return toast("Введите название");
+  const name = String(draft.name || "").trim();
+  if (!name) return toast("Введите название");
   const ingredients = draft.ingredients.filter((ingredient) => ingredient.productId && number(ingredient.amount) > 0);
   if (!ingredients.length) return toast("Добавьте ингредиенты");
   state.dishes.unshift({
     id: uid(),
-    name: draft.name,
+    name,
     ingredients
   });
   dishBuilder = null;
@@ -4605,15 +4620,17 @@ function createProductPage() {
   const type = draft.type || "weight";
   return `
     ${addBackHeader("Создать продукт", "home", "Заполните информацию о продукте")}
-    <div class="panel create-product-panel">
-      <form class="form-grid create-product-form" data-form="product">
-        <div class="field full create-product-section"><label>Название продукта</label><input name="name" value="${escapeHtml(draft.name || "")}" placeholder="Спагетти" enterkeyhint="next" required></div>
-        ${productTypeSegments(type)}
-        ${productNutritionFields(draft)}
-        ${productCookingSection(draft, type)}
-        ${productSaveModeFields(draft)}
-        <div class="field full"><button class="primary-btn full-btn" type="submit">${(draft.saveMode || "library") === "diary" ? "Добавить в дневник" : "Сохранить продукт"}</button></div>
-      </form>
+    <div class="create-product-page">
+      <div class="panel create-product-panel">
+        <form class="form-grid create-product-form" data-form="product">
+          <div class="field full create-product-section"><label>Название продукта</label><input name="name" value="${escapeHtml(draft.name || "")}" placeholder="Спагетти" enterkeyhint="next" required></div>
+          ${productTypeSegments(type)}
+          ${productNutritionFields(draft)}
+          ${productCookingSection(draft, type)}
+          ${productSaveModeFields(draft)}
+          <div class="field full"><button class="primary-btn full-btn" type="submit">${(draft.saveMode || "library") === "diary" ? "Добавить в дневник" : "Сохранить продукт"}</button></div>
+        </form>
+      </div>
     </div>`;
 }
 
