@@ -266,6 +266,7 @@ let keyboardBaseHeight = window.visualViewport?.height || window.innerHeight;
 let keyboardTimer = null;
 let keyboardScrollTimer = null;
 let modalScrollY = 0;
+let modalSwipe = null;
 
 const formControlSelector = 'input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"]), textarea, select';
 const systemThemeQuery = window.matchMedia?.("(prefers-color-scheme: dark)");
@@ -330,7 +331,68 @@ function setModalMode(active) {
     const previousScroll = modalScrollY;
     modalScrollY = 0;
     document.body.style.removeProperty("--modal-scroll-y");
+    modalSwipe = null;
     if (previousScroll) window.scrollTo(0, previousScroll);
+  }
+}
+
+function modalTouchStart(event) {
+  if (!hasModalOpen() || event.touches.length !== 1) return;
+  const target = event.target instanceof Element ? event.target : null;
+  const card = target?.closest(".modal-card");
+  if (!card) return;
+  if (target?.closest("button, a, input, textarea, select, label, [role='button']")) return;
+  const backdrop = card.closest(".modal-backdrop");
+  if (!backdrop) return;
+  const touch = event.touches[0];
+  modalSwipe = {
+    touchId: touch.identifier,
+    card,
+    backdrop,
+    modalName: backdrop.dataset.modalClose || "",
+    startX: touch.clientX,
+    startY: touch.clientY,
+    deltaY: 0,
+    active: false
+  };
+}
+
+function modalTouchMove(event) {
+  if (!modalSwipe) return;
+  const touch = [...event.touches].find((item) => item.identifier === modalSwipe.touchId);
+  if (!touch) return;
+  const dx = touch.clientX - modalSwipe.startX;
+  const dy = touch.clientY - modalSwipe.startY;
+  if (!modalSwipe.active) {
+    if (dy < 14 || dy <= Math.abs(dx)) return;
+    if ((modalSwipe.card.scrollTop || 0) > 0) return;
+    modalSwipe.active = true;
+    modalSwipe.card.style.transition = "none";
+    modalSwipe.card.style.willChange = "transform";
+  }
+  if (!modalSwipe.active) return;
+  event.preventDefault();
+  const offset = Math.max(0, dy);
+  modalSwipe.deltaY = offset;
+  modalSwipe.card.style.transform = `translate3d(0, ${offset}px, 0)`;
+  modalSwipe.backdrop.style.backgroundColor = `rgba(5, 5, 5, ${Math.max(0.12, 0.52 - offset / 900)})`;
+}
+
+function modalTouchEnd(event) {
+  if (!modalSwipe) return;
+  const touch = [...event.changedTouches].find((item) => item.identifier === modalSwipe.touchId);
+  if (!touch) return;
+  const { card, backdrop, modalName, active } = modalSwipe;
+  const deltaY = modalSwipe.deltaY || Math.max(0, touch.clientY - modalSwipe.startY);
+  modalSwipe = null;
+  card.style.transition = "";
+  card.style.transform = "";
+  card.style.willChange = "";
+  backdrop.style.backgroundColor = "";
+  if (active && deltaY > 84) {
+    blurActive();
+    closeModal(modalName);
+    render();
   }
 }
 
@@ -642,6 +704,13 @@ function ensureShape() {
     ...(state.settings.reminders || {})
   });
   state.products ||= [];
+  state.products = state.products
+    .filter(Boolean)
+    .map((product) => ({
+      ...product,
+      id: product.id || uid(),
+      favorite: Boolean(product.favorite)
+    }));
   state.mealTemplates ||= [];
   state.eightyOverrides ||= {};
   state.dishes ||= [];
@@ -2302,6 +2371,7 @@ function addProduct(form) {
     protein: number(data.get("protein")),
     fat: number(data.get("fat")),
     carbs: number(data.get("carbs")),
+    favorite: false,
     cookedBaseType: productType === "cooked" ? baseType : "",
     cookedDryWeight: productType === "cooked" ? dryWeight : 0,
     cookedReadyWeight: productType === "cooked" ? readyWeight : 0
@@ -2775,6 +2845,20 @@ function userLibraryItems(query = favoritesQuery) {
       .sort(sortByName)
     : [];
   return [...products, ...dishes, ...builtin];
+}
+
+function productLibraryItems(query = favoritesQuery) {
+  const normalized = query.trim().toLowerCase();
+  return state.products
+    .filter((product) => !normalized || String(product.name || "").toLowerCase().includes(normalized))
+    .sort((a, b) => a.name.localeCompare(b.name, "ru"));
+}
+
+function renderLibrarySection(title, items, emptyText, renderItem = libraryRow) {
+  return `<section class="section-block">
+    <div class="section-title"><h2>${title}</h2><span>${items.length}</span></div>
+    <div class="list">${items.length ? items.map(renderItem).join("") : `<div class="empty big-empty">${emptyText}</div>`}</div>
+  </section>`;
 }
 
 function onboardingProgress() {
@@ -4823,7 +4907,10 @@ function screenFavorites() {
   if (favoritesPage === "eighty") return screenFavoritesEightyCategories();
   if (favoritesPage === "eighty-category") return screenFavoritesEightyCategory();
   const query = favoritesQuery.trim();
-  const items = userLibraryItems(query);
+  const products = productLibraryItems(query);
+  const favoriteProducts = products.filter((product) => product.favorite);
+  const regularProducts = products.filter((product) => !product.favorite);
+  const otherItems = userLibraryItems(query).filter((entry) => entry.kind !== "product");
   return `<section class="${screenStateClass("favorites")}">
     <div class="stack">
       <header class="screen-header profile-title">
@@ -4839,7 +4926,9 @@ function screenFavorites() {
           <button class="${favoritesSort === "za" ? "active" : ""}" type="button" data-favorites-sort="za">Я-А</button>
         </div>
       </div>
-      <div class="list" data-favorites-list>${items.length ? items.map(libraryRow).join("") : `<div class="empty big-empty">${query ? "Ничего не найдено." : "Пока ничего не добавлено."}</div>`}</div>
+      ${favoriteProducts.length ? renderLibrarySection("ИЗБРАННЫЕ", favoriteProducts, "Пока нет избранных продуктов.", productRow) : ""}
+      ${renderLibrarySection("ВСЕ ПРОДУКТЫ", regularProducts, query ? "Ничего не найдено." : favoriteProducts.length ? "Обычных продуктов пока нет." : "Пока ничего не добавлено.", productRow)}
+      ${otherItems.length ? renderLibrarySection("ДРУГОЕ", otherItems, "Ничего не найдено.") : ""}
     </div>
   </section>`;
 }
@@ -4915,7 +5004,8 @@ function libraryRow(entry) {
 }
 
 function productRow(product) {
-  return `<div class="product-row item-card library-product-card">
+  const favorite = Boolean(product.favorite);
+  return `<div class="product-row item-card library-product-card ${favorite ? "favorite" : ""}">
     <button class="library-card-main" type="button" data-edit-product="${product.id}">
       <span class="library-card-head">
         <strong>${escapeHtml(product.name)}</strong>
@@ -4923,8 +5013,19 @@ function productRow(product) {
       <span class="library-card-meta">${round(product.calories)} ккал • ${productLibraryTypeLabel(product)}</span>
       ${macroBadges(product)}
     </button>
-    <button class="icon-btn compact delete-btn" data-confirm-delete-product="${product.id}" title="Удалить">${icons.trash}</button>
+    <div class="library-card-actions">
+      <button class="icon-btn compact favorite-btn" type="button" data-toggle-product-favorite="${product.id}" aria-pressed="${favorite}" aria-label="${favorite ? "Убрать из избранного" : "Добавить в избранное"}" title="${favorite ? "Убрать из избранного" : "Добавить в избранное"}">★</button>
+      <button class="icon-btn compact delete-btn" type="button" data-confirm-delete-product="${product.id}" title="Удалить">${icons.trash}</button>
+    </div>
   </div>`;
+}
+
+function toggleProductFavorite(id) {
+  const product = state.products.find((item) => item.id === id);
+  if (!product) return;
+  product.favorite = !Boolean(product.favorite);
+  persist();
+  render();
 }
 
 function dishRow(dish) {
@@ -5092,13 +5193,15 @@ function deleteConfirmModal() {
   const isWeight = deleteConfirm.kind === "weight";
   const isEighty = deleteConfirm.kind === "eighty";
   const isTemplate = deleteConfirm.kind === "template";
+  const isProduct = deleteConfirm.kind === "product";
   return `<div class="modal-backdrop" data-modal-close="delete-confirm">
     <div class="modal-card confirm-modal" role="dialog" aria-modal="true" aria-label="Подтверждение удаления">
       <div class="modal-head">
         <div>
-          <span>${isTemplate ? "⭐ Шаблон" : isWeight ? "⚖ Вес" : isDish ? "Блюдо" : isEighty ? "📚 База Eighty" : "Продукт"}</span>
+          ${isProduct ? "" : `<span>${isTemplate ? "⭐ Шаблон" : isWeight ? "⚖ Вес" : isDish ? "Блюдо" : isEighty ? "📚 База Eighty" : "Продукт"}</span>`}
           <h3>${isTemplate ? "Удалить шаблон?" : isWeight ? "Удалить запись веса?" : isDish ? "Удалить блюдо?" : isEighty ? "Удалить продукт из вашей базы?" : "Удалить продукт?"}</h3>
         </div>
+        <button class="icon-btn compact neutral" type="button" data-action="cancel-delete" aria-label="Закрыть">×</button>
       </div>
       <div class="modal-actions">
         <button class="secondary-btn" type="button" data-action="cancel-delete">Отмена</button>
@@ -5117,6 +5220,7 @@ function accountDeleteModal() {
           <span>Сброс данных</span>
           <h3>Удалить аккаунт?</h3>
         </div>
+        <button class="icon-btn compact neutral" type="button" data-action="cancel-account-delete" aria-label="Закрыть">×</button>
       </div>
       <div class="account-delete-copy">
         <p>Это действие нельзя отменить.</p>
@@ -5936,6 +6040,10 @@ app.addEventListener("pointerdown", daySwipeStart);
 app.addEventListener("pointermove", daySwipeMove);
 app.addEventListener("pointerup", daySwipeEnd);
 app.addEventListener("pointercancel", daySwipeEnd);
+app.addEventListener("touchstart", modalTouchStart, { passive: true });
+app.addEventListener("touchmove", modalTouchMove, { passive: false });
+app.addEventListener("touchend", modalTouchEnd, { passive: true });
+app.addEventListener("touchcancel", modalTouchEnd, { passive: true });
 
 app.addEventListener("click", async (event) => {
   if (event.target.dataset.modalClose) {
@@ -6285,6 +6393,10 @@ app.addEventListener("click", async (event) => {
   if (button.dataset.deleteEntry) deleteEntry(button.dataset.deleteEntry);
   if (button.dataset.deleteProduct) deleteProduct(button.dataset.deleteProduct);
   if (button.dataset.deleteWeight) deleteWeight(button.dataset.deleteWeight);
+  if (button.dataset.toggleProductFavorite) {
+    toggleProductFavorite(button.dataset.toggleProductFavorite);
+    return;
+  }
   if (button.dataset.confirmDeleteProduct) {
     deleteConfirm = { kind: "product", id: button.dataset.confirmDeleteProduct };
     render();
