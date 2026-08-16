@@ -349,7 +349,6 @@ function updateKeyboardMode() {
   setKeyboardMode(focused && (keyboardVisible || Boolean(tg) || window.innerWidth <= 820), keyboardOffset);
   activateTabIndicatorMotion();
   if (window.scrollX) window.scrollTo({ top: window.scrollY, left: 0, behavior: "auto" });
-  if (focused) scheduleFocusedControlScroll(document.activeElement, 80);
 }
 
 function focusScrollTarget(control) {
@@ -422,7 +421,6 @@ function setupKeyboardBehavior() {
     setKeyboardMode(true, Math.max(0, keyboardBaseHeight - (viewport?.height || window.innerHeight)));
     clearTimeout(keyboardScrollTimer);
     keyboardScrollTimer = setTimeout(() => {
-      updateKeyboardMode();
       scrollFocusedControlIntoView(event.target);
     }, 120);
   });
@@ -990,7 +988,7 @@ function validateOnboardingStep(step = onboardingStep) {
 function focusOnboardingField() {
   setTimeout(() => {
     const field = app.querySelector("[data-onboarding-autofocus]");
-    if (field instanceof HTMLElement) field.focus();
+    focusWithoutScroll(field);
   }, 80);
 }
 
@@ -1607,6 +1605,16 @@ function blurActive() {
   if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
 }
 
+function focusWithoutScroll(control, cursor = null) {
+  if (!(control instanceof HTMLElement)) return;
+  try {
+    control.focus({ preventScroll: true });
+  } catch {
+    control.focus();
+  }
+  if (cursor !== null) control.setSelectionRange?.(cursor, cursor);
+}
+
 function waitFrame() {
   return new Promise((resolve) => requestAnimationFrame(() => resolve()));
 }
@@ -2192,8 +2200,7 @@ function toggleProduct(id) {
   if (keepSearchActive) {
     const search = app.querySelector("[data-add-food-query]");
     const cursor = search?.value?.length || 0;
-    search?.focus();
-    search?.setSelectionRange?.(cursor, cursor);
+    focusWithoutScroll(search, cursor);
   }
 }
 
@@ -6543,8 +6550,7 @@ app.addEventListener("input", (event) => {
     const cursor = target.selectionStart;
     render();
     const nextSearch = app.querySelector("[data-favorites-query]");
-    nextSearch?.focus();
-    nextSearch?.setSelectionRange?.(cursor, cursor);
+    focusWithoutScroll(nextSearch, cursor);
     return;
   }
   if (target.matches("[data-favorites-eighty-query]")) {
@@ -6552,8 +6558,7 @@ app.addEventListener("input", (event) => {
     const cursor = target.selectionStart;
     render();
     const nextSearch = app.querySelector("[data-favorites-eighty-query]");
-    nextSearch?.focus();
-    nextSearch?.setSelectionRange?.(cursor, cursor);
+    focusWithoutScroll(nextSearch, cursor);
     return;
   }
   if (target.matches("[data-add-food-query]")) {
@@ -6561,8 +6566,7 @@ app.addEventListener("input", (event) => {
     const cursor = target.selectionStart;
     render();
     const nextSearch = app.querySelector("[data-add-food-query]");
-    nextSearch?.focus();
-    nextSearch?.setSelectionRange?.(cursor, cursor);
+    focusWithoutScroll(nextSearch, cursor);
     return;
   }
   if (target.matches("[data-eighty-import-query]")) {
@@ -6570,8 +6574,7 @@ app.addEventListener("input", (event) => {
     const cursor = target.selectionStart;
     render();
     const nextSearch = app.querySelector("[data-eighty-import-query]");
-    nextSearch?.focus();
-    nextSearch?.setSelectionRange?.(cursor, cursor);
+    focusWithoutScroll(nextSearch, cursor);
     return;
   }
   if (target.dataset.eightyImportAmount) {
@@ -6595,8 +6598,7 @@ app.addEventListener("input", (event) => {
     render();
     const selector = name === "dishName" ? '[name="dishName"]' : "[data-dish-search]";
     const nextInput = app.querySelector(selector);
-    nextInput?.focus();
-    nextInput?.setSelectionRange?.(cursor, cursor);
+    focusWithoutScroll(nextInput, cursor);
     return;
   }
   if (target.matches("[data-ingredient-picker-query]")) {
@@ -6606,8 +6608,7 @@ app.addEventListener("input", (event) => {
     const cursor = target.selectionStart;
     render();
     const nextSearch = app.querySelector("[data-ingredient-picker-query]");
-    nextSearch?.focus();
-    nextSearch?.setSelectionRange?.(cursor, cursor);
+    focusWithoutScroll(nextSearch, cursor);
     return;
   }
   if (target.dataset.ingredientPickerAmount) {
@@ -6624,8 +6625,7 @@ app.addEventListener("input", (event) => {
     if (form) syncDishBuilderFromForm(form);
     render();
     const nextInput = rowId ? app.querySelector(`[data-builder-ingredient="${rowId}"] [name="builderIngredientAmount"]`) : null;
-    nextInput?.focus();
-    nextInput?.setSelectionRange?.(cursor, cursor);
+    focusWithoutScroll(nextInput, cursor);
     return;
   }
   if (target.name === "ingredientAmount") {
@@ -6636,8 +6636,7 @@ app.addEventListener("input", (event) => {
     if (form) syncDishDraftFromForm(form);
     render();
     const nextInput = rowId ? app.querySelector(`[data-dish-ingredient="${rowId}"] [name="ingredientAmount"]`) : null;
-    nextInput?.focus();
-    nextInput?.setSelectionRange?.(cursor, cursor);
+    focusWithoutScroll(nextInput, cursor);
     return;
   }
   const entryForm = target.closest('form[data-form="entry"]');

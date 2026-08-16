@@ -4108,8 +4108,16 @@ button:disabled {
 
 .choice-card input[type="radio"] {
   position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
   opacity: 0;
   pointer-events: none;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
 }
 
 .product-save-mode .choice-card {
@@ -4258,8 +4266,16 @@ button:disabled {
 
 .product-type-segments input {
   position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
   opacity: 0;
   pointer-events: none;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
 }
 
 .product-type-segments span {
