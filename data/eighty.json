@@ -67,7 +67,8 @@
             "fat": 0,
             "carbs": 4,
             "cookedDryWeight": 100,
-            "cookedReadyWeight": 230
+            "cookedReadyWeight": 230,
+            "favorite": false
           },
           {
             "id": "q4ur0xhpmqyc4unw",
@@ -78,7 +79,8 @@
             "fat": 0,
             "carbs": 4,
             "cookedDryWeight": 100,
-            "cookedReadyWeight": 230
+            "cookedReadyWeight": 230,
+            "favorite": false
           },
           {
             "id": "wrws1y5xmqveuqk6",
@@ -89,7 +91,8 @@
             "fat": 2,
             "carbs": 4,
             "cookedDryWeight": 100,
-            "cookedReadyWeight": 250
+            "cookedReadyWeight": 250,
+            "favorite": false
           },
           {
             "id": "bcfr0xttmqvbqpht",
@@ -100,7 +103,8 @@
             "fat": 14,
             "carbs": 4,
             "cookedDryWeight": 100,
-            "cookedReadyWeight": 230
+            "cookedReadyWeight": 230,
+            "favorite": false
           },
           {
             "id": "iolohvivmqvbqc9x",
@@ -111,7 +115,8 @@
             "fat": 0.3,
             "carbs": 22.8,
             "cookedDryWeight": 100,
-            "cookedReadyWeight": 230
+            "cookedReadyWeight": 230,
+            "favorite": true
           },
           {
             "id": "7nb3crkpmqvbq0pr",
@@ -122,7 +127,8 @@
             "fat": 3,
             "carbs": 0.5,
             "cookedDryWeight": 100,
-            "cookedReadyWeight": 230
+            "cookedReadyWeight": 230,
+            "favorite": false
           }
         ],
         "diary": {
@@ -424,7 +430,8 @@
               "createdAt": "2026-06-28T22:03:18.196Z"
             }
           ],
-          "2026-08-16": []
+          "2026-08-16": [],
+          "2026-09-12": []
         },
         "water": {
           "2026-06-22": 0,
@@ -435,7 +442,8 @@
           "2026-06-26": 0,
           "2026-06-28": 250,
           "2026-06-29": 0,
-          "2026-08-16": 0
+          "2026-08-16": 0,
+          "2026-09-12": 0
         },
         "weightLogs": [
           {
@@ -474,7 +482,8 @@
             }
           ],
           "2026-06-29": [],
-          "2026-08-16": []
+          "2026-08-16": [],
+          "2026-09-12": []
         },
         "stats": {
           "currentStreak": 0,
@@ -493,7 +502,7 @@
         "accountResetAt": "2026-06-25T03:46:36.159Z",
         "mealTemplates": []
       },
-      "updatedAt": "2026-08-16T16:51:53.093Z"
+      "updatedAt": "2026-09-12T09:35:59.338Z"
     },
     "codex-onboarding-test": {
       "telegramId": "codex-onboarding-test",

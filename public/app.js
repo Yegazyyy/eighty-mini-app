@@ -3892,7 +3892,6 @@ function addCreateMenu() {
   return `<div class="add-create-menu">
     <button type="button" data-add-page="product">🥫 Создать продукт</button>
     <button type="button" data-add-page="dish">🍽️ Создать блюдо</button>
-    <button type="button" data-add-page="template">⭐ Создать шаблон</button>
   </div>`;
 }
 
@@ -4108,19 +4107,32 @@ function deleteMealTemplate(id) {
 
 function addRationPage(showHeader = true) {
   const products = filteredAddProducts();
+  const favoriteProducts = products.filter((product) => product.favorite);
+  const regularProducts = products.filter((product) => !product.favorite);
   const selectedCount = selectedMealItems().length;
   return `
     ${showHeader ? addBackHeader("Добавить в рацион") : ""}
     <div class="add-meal-flow add-ration-page">
-      ${templatesSection()}
       ${addFoodSearchRow()}
-      <div class="product-choice-list">
-        ${products.length
-          ? products.map(rationChoiceCard).join("")
-          : `<div class="big-empty compact-empty"><div><strong>Ничего не найдено</strong><span>Попробуйте изменить запрос или открыть каталог Eighty.</span></div></div>`}
-      </div>
+      ${addRationProductList(favoriteProducts, regularProducts)}
       <button class="primary-btn full-btn add-meal-submit sticky-add-submit" type="button" data-action="ration-next" ${selectedCount ? "" : "disabled"}>Добавить (${selectedCount})</button>
     </div>`;
+}
+
+function addRationProductList(favoriteProducts, regularProducts) {
+  const sortByName = (a, b) => a.name.localeCompare(b.name, "ru");
+  const favorites = [...favoriteProducts].sort(sortByName);
+  const regular = [...regularProducts].sort(sortByName);
+  if (!favorites.length && !regular.length) {
+    return `<div class="product-choice-list">
+      <div class="big-empty compact-empty"><div><strong>Ничего не найдено</strong><span>Попробуйте изменить запрос или открыть каталог Eighty.</span></div></div>
+    </div>`;
+  }
+  return `<div class="product-choice-list">
+    ${favorites.length ? `<div class="section-title"><h2>ИЗБРАННЫЕ</h2><span>${favorites.length}</span></div>${favorites.map(productSelectCard).join("")}` : ""}
+    <div class="section-title"><h2>ВСЕ ПРОДУКТЫ</h2><span>${regular.length}</span></div>
+    ${regular.length ? regular.map(productSelectCard).join("") : `<div class="empty-line">Обычных продуктов пока нет.</div>`}
+  </div>`;
 }
 
 function addFoodSearchRow() {
@@ -4145,33 +4157,6 @@ function productSearchToolsRow({ inputAttrs, placeholder, libraryAttrs }) {
     <button class="icon-btn library-open-btn barcode-open-btn" type="button" data-action="open-barcode-scanner" title="Сканировать штрихкод" aria-label="Сканировать штрихкод">📷</button>
     <button class="icon-btn library-open-btn" type="button" ${libraryAttrs} title="База Eighty" aria-label="База Eighty">📚</button>
   </div>`;
-}
-
-function rationChoiceCard(product) {
-  const selected = hasDraftItem(product.id);
-  const label = productChoiceLabel(product, true);
-  return `<article class="product-choice ration-choice ${selected ? "selected" : ""}">
-    <button class="product-choice-main" type="button" data-toggle-product="${product.id}">
-      <span class="product-choice-copy">
-        <strong>${escapeHtml(product.name)}</strong>
-        <em>${label}</em>
-        ${productMacroStrip(product)}
-      </span>
-      <span class="product-choice-side">
-        ${builtinBadge(product)}
-        <b>${round(product.calories)} ккал</b>
-      </span>
-      ${selected ? `<i class="choice-check">✓</i>` : ""}
-    </button>
-  </article>`;
-}
-
-function productMacroStrip(product) {
-  return `<span class="product-choice-macros">
-    <span>Б ${round(product.protein, 1)}</span>
-    <span>Ж ${round(product.fat, 1)}</span>
-    <span>У ${round(product.carbs, 1)}</span>
-  </span>`;
 }
 
 function addRationAmountsPage() {
@@ -5003,21 +4988,65 @@ function libraryRow(entry) {
   return productRow(entry.item);
 }
 
-function productRow(product) {
-  const favorite = Boolean(product.favorite);
-  return `<div class="product-row item-card library-product-card ${favorite ? "favorite" : ""}">
-    <button class="library-card-main" type="button" data-edit-product="${product.id}">
-      <span class="library-card-head">
-        <strong>${escapeHtml(product.name)}</strong>
-      </span>
-      <span class="library-card-meta">${round(product.calories)} ккал • ${productLibraryTypeLabel(product)}</span>
-      ${macroBadges(product)}
+// Shared visual shell for every "library card" in the app: the personal
+// products/dishes list on the "Продукты" screen AND the product-selection
+// list on the "Добавить" screen render through this same function, so both
+// stay visually and structurally identical by construction.
+function libraryCardShell({ mainAttrs, headContent, meta, macrosHtml, icons: iconButtons = [], selected = false }) {
+  const cardModifier = iconButtons.length === 2 ? "has-two-actions" : iconButtons.length === 1 ? "has-one-action" : "";
+  return `<div class="product-row item-card library-product-card ${cardModifier} ${selected ? "selected" : ""}">
+    <button class="library-card-main" type="button" ${mainAttrs}>
+      <span class="library-card-head">${headContent}</span>
+      <span class="library-card-meta">${meta}</span>
+      ${macrosHtml}
     </button>
-    <div class="library-card-actions">
-      <button class="icon-btn compact favorite-btn" type="button" data-toggle-product-favorite="${product.id}" aria-pressed="${favorite}" aria-label="${favorite ? "Убрать из избранного" : "Добавить в избранное"}" title="${favorite ? "Убрать из избранного" : "Добавить в избранное"}">${favorite ? "★" : "☆"}</button>
-      <button class="icon-btn compact delete-btn" type="button" data-confirm-delete-product="${product.id}" title="Удалить">${icons.trash}</button>
-    </div>
+    ${iconButtons.join("")}
   </div>`;
+}
+
+// The favorite star: identical markup/classes and identical
+// toggleProductFavorite() handler everywhere it appears — "Продукты" and
+// the "Добавить" selection screen read and write the same
+// `product.favorite` field, so there is only ever one favorites state.
+// `slot` fixes its position (see libraryCardShell above); it does not
+// affect look or behavior.
+function favoriteToggleButton(product, slot) {
+  const favorite = Boolean(product.favorite);
+  return `<button class="icon-btn compact favorite-btn library-icon-slot-${slot}" type="button" data-toggle-product-favorite="${product.id}" aria-pressed="${favorite}" aria-label="${favorite ? "Убрать из избранного" : "Добавить в избранное"}" title="${favorite ? "Убрать из избранного" : "Добавить в избранное"}">${favorite ? "★" : "☆"}</button>`;
+}
+
+function productRow(product) {
+  return libraryCardShell({
+    mainAttrs: `data-edit-product="${product.id}"`,
+    headContent: `<strong>${escapeHtml(product.name)}</strong>`,
+    meta: `${round(product.calories)} ккал • ${productLibraryTypeLabel(product)}`,
+    macrosHtml: macroBadges(product),
+    icons: [
+      favoriteToggleButton(product, 1),
+      `<button class="icon-btn compact delete-btn library-icon-slot-2" type="button" data-confirm-delete-product="${product.id}" title="Удалить">${icons.trash}</button>`
+    ]
+  });
+}
+
+// Same card, but the main tap selects the product for the diary instead of
+// opening the editor, and there is no delete action. Used only on the
+// "Добавить" product-selection screen; the favorite star is the exact same
+// component/state as on "Продукты" (shared `product.favorite` + shared
+// toggleProductFavorite()).
+function productSelectCard(product) {
+  const selected = hasDraftItem(product.id);
+  const showFavorite = product.kind === "product";
+  const meta = showFavorite
+    ? `${round(product.calories)} ккал • ${productLibraryTypeLabel(product)}`
+    : `${round(product.calories)} ккал • 100 г`;
+  return libraryCardShell({
+    mainAttrs: `data-toggle-product="${product.id}"`,
+    headContent: `<strong>${escapeHtml(product.name)}</strong>${product.kind === "eighty" ? builtinBadge(product) : ""}`,
+    meta,
+    macrosHtml: macroBadges(product),
+    icons: showFavorite ? [favoriteToggleButton(product, 1)] : [],
+    selected
+  });
 }
 
 function toggleProductFavorite(id) {
@@ -5025,36 +5054,39 @@ function toggleProductFavorite(id) {
   if (!product) return;
   product.favorite = !Boolean(product.favorite);
   persist();
+  const keepAddSearchActive = activeScreen === "add" && (addPage === "ration" || addPage === "home");
+  const keepFavoritesSearchActive = activeScreen === "favorites" && favoritesPage === "home";
   render();
+  if (keepAddSearchActive) {
+    const search = app.querySelector("[data-add-food-query]");
+    const cursor = search?.value?.length || 0;
+    focusWithoutScroll(search, cursor);
+  } else if (keepFavoritesSearchActive) {
+    const search = app.querySelector("[data-favorites-query]");
+    const cursor = search?.value?.length || 0;
+    focusWithoutScroll(search, cursor);
+  }
 }
 
 function dishRow(dish) {
   const totals = calcDish(dish);
   const product = dishAsProduct(dish);
-  return `<div class="product-row item-card library-product-card">
-    <button class="library-card-main" type="button" data-edit-dish="${dish.id}">
-      <span class="library-card-head">
-        <strong>${escapeHtml(dish.name || "Блюдо")}</strong>
-      </span>
-      <span class="library-card-meta">${round(totals.per100.calories)} ккал • 100 г</span>
-      ${macroBadges(product)}
-    </button>
-    <button class="icon-btn compact delete-btn" data-confirm-delete-dish="${dish.id}" title="Удалить">${icons.trash}</button>
-  </div>`;
+  return libraryCardShell({
+    mainAttrs: `data-edit-dish="${dish.id}"`,
+    headContent: `<strong>${escapeHtml(dish.name || "Блюдо")}</strong>`,
+    meta: `${round(totals.per100.calories)} ккал • 100 г`,
+    macrosHtml: macroBadges(product),
+    icons: [`<button class="icon-btn compact delete-btn library-icon-slot-1" data-confirm-delete-dish="${dish.id}" title="Удалить">${icons.trash}</button>`]
+  });
 }
 
 function eightyLibraryRow(product) {
-  return `<div class="product-row item-card library-product-card">
-    <button class="library-card-main" type="button" data-edit-eighty-product="${product.id}">
-      <span class="library-card-head">
-        <strong>${escapeHtml(product.name)}</strong>
-        ${builtinBadge(product)}
-      </span>
-      <span class="library-card-meta">${round(product.calories)} ккал • 100 г</span>
-      ${macroBadges(product)}
-    </button>
-    <span class="library-card-action-space" aria-hidden="true"></span>
-  </div>`;
+  return libraryCardShell({
+    mainAttrs: `data-edit-eighty-product="${product.id}"`,
+    headContent: `<strong>${escapeHtml(product.name)}</strong>${builtinBadge(product)}`,
+    meta: `${round(product.calories)} ккал • 100 г`,
+    macrosHtml: macroBadges(product)
+  });
 }
 
 function openProductEditor(id) {
