@@ -222,6 +222,7 @@ let onboardingStep = 1;
 let onboardingDraft = null;
 let libraryEditor = null;
 let deleteConfirm = null;
+let discardChangesConfirm = false;
 let entryDraft = { meal: "breakfast", items: {} };
 let mealCartOpen = false;
 let addPanelMode = "existing";
@@ -315,6 +316,7 @@ function hasModalOpen() {
     earnedAchievementsOpen ||
     periodSheetOpen ||
     deleteConfirm ||
+    discardChangesConfirm ||
     accountDeleteOpen ||
     accountDeleteBusy
   );
@@ -537,6 +539,13 @@ async function bootstrap() {
   }
 
   ensureShape();
+  // Resume an unfinished onboarding questionnaire from where it was left —
+  // otherwise reopening the Mini App after it was closed/backgrounded mid-
+  // onboarding would restart the whole flow from step 1.
+  if (!state.onboardingCompleted) {
+    onboardingStep = state.onboardingStep || 1;
+    onboardingDraft = state.onboardingDraft || null;
+  }
   persist({ immediate: true });
   render();
 }
@@ -660,6 +669,13 @@ function ensureShape() {
   state.createdAt ||= new Date().toISOString();
   state.onboardingCompleted = Boolean(state.onboardingCompleted);
   const completed = state.onboardingCompleted;
+  // Persisted onboarding progress (see persistOnboardingProgress / bootstrap)
+  // so an unfinished questionnaire survives the Mini App being closed and
+  // reopened, instead of only being saved once the whole flow is finished.
+  state.onboardingStep = Number.isInteger(state.onboardingStep) && state.onboardingStep >= 1 && state.onboardingStep <= 6
+    ? state.onboardingStep
+    : 1;
+  state.onboardingDraft = state.onboardingDraft && typeof state.onboardingDraft === "object" ? state.onboardingDraft : null;
   state.profile = {
     name: completed ? currentUser.name || "" : "",
     sex: "",
@@ -720,7 +736,11 @@ function ensureShape() {
     ingredients: (dish.ingredients || []).map((ingredient) => ({
       id: ingredient.id || uid(),
       productId: ingredient.productId || "",
-      amount: optionalNumber(ingredient.amount)
+      amount: optionalNumber(ingredient.amount),
+      // Frozen nutrition captured when the source product was deleted (see
+      // deleteProduct) — kept as-is across reshaping so the dish's КБЖУ
+      // stays correct even after the product is gone.
+      ...(ingredient.productSnapshot ? { productSnapshot: ingredient.productSnapshot } : {})
     }))
   }));
   state.diary ||= {};
@@ -1007,6 +1027,17 @@ function ensureOnboardingDraft() {
   return onboardingDraft;
 }
 
+function persistOnboardingProgress() {
+  // Saves the in-progress questionnaire into state (and immediately syncs,
+  // not the debounced 300ms path) so it survives the Telegram Mini App
+  // being backgrounded/closed mid-onboarding, not only once finishOnboarding
+  // runs. See ensureShape for the corresponding defaults and bootstrap for
+  // where this is restored on load.
+  state.onboardingStep = onboardingStep;
+  state.onboardingDraft = onboardingDraft;
+  persist({ immediate: true });
+}
+
 function onboardingNeedsTarget() {
   const draft = ensureOnboardingDraft();
   return ["loss", "gain"].includes(draft.goalMode);
@@ -1066,12 +1097,14 @@ function advanceOnboarding(form) {
   if (!validateOnboardingStep()) return;
   if (onboardingStep === 5) onboardingStep = 6;
   else onboardingStep = onboardingNextStep();
+  persistOnboardingProgress();
   render();
   focusOnboardingField();
 }
 
 function goBackOnboarding() {
   onboardingStep = onboardingPreviousStep();
+  persistOnboardingProgress();
   render();
   focusOnboardingField();
 }
@@ -1080,11 +1113,13 @@ function selectOnboardingGoal(goal) {
   const draft = ensureOnboardingDraft();
   draft.goalMode = goal;
   if (!["loss", "gain"].includes(goal)) draft.targetWeight = draft.weight;
+  persistOnboardingProgress();
   render();
 }
 
 function selectOnboardingActivity(activity) {
   ensureOnboardingDraft().activity = activity;
+  persistOnboardingProgress();
   render();
 }
 
@@ -1143,6 +1178,8 @@ function finishOnboarding() {
   activeScreen = "diary";
   onboardingDraft = null;
   onboardingStep = 1;
+  state.onboardingDraft = null;
+  state.onboardingStep = 1;
   persist({ immediate: true });
   render();
   toast("Eighty готов к работе");
@@ -1216,7 +1253,13 @@ function ingredientItemById(id, ownerDishId = "") {
 function calcDish(dish) {
   const ingredients = (dish.ingredients || [])
     .map((ingredient) => {
-      const product = ingredientItemById(ingredient.productId, dish.id);
+      // Prefer the live product/dish (so edits to it keep reflecting here,
+      // same as before). Only fall back to the frozen snapshot when the
+      // source product no longer exists (was deleted from the library) —
+      // this keeps the dish's КБЖУ unchanged instead of silently dropping
+      // the ingredient.
+      const product = ingredientItemById(ingredient.productId, dish.id)
+        || (ingredient.productSnapshot ? { ...ingredient.productSnapshot, id: ingredient.productId } : null);
       const amount = number(ingredient.amount);
       return product && amount > 0 ? { ingredient, product, amount, nutrients: calcProduct(product, amount) } : null;
     })
@@ -1591,7 +1634,12 @@ function setAddPage(page) {
     productCreateDraft = null;
     productCookingOpen = false;
     productAmountInfoOpen = false;
-    entryDraft = { meal: entryDraft.meal || "breakfast", items: {} };
+    // Do NOT reset entryDraft.items here: "home" is just the "← Назад"
+    // target from ration/eighty/product/dish sub-pages, not the end of the
+    // add-to-diary scenario — already-picked products and their amounts
+    // must survive returning to this screen. entryDraft is only reset when
+    // the add flow actually starts fresh (setScreen/openAdd) or finishes
+    // (addEntry / addProduct diary-mode).
     dishBuilder = null;
   }
   if (page === "product") {
@@ -1702,6 +1750,7 @@ function closeModal(name) {
   if (!name || name === "meal-template") mealTemplateEditor = null;
   if (!name || name === "library-editor") libraryEditor = null;
   if (!name || name === "delete-confirm") deleteConfirm = null;
+  if (!name || name === "discard-changes") discardChangesConfirm = false;
   if (!name || name === "account-delete") accountDeleteOpen = false;
   if (!name || name === "barcode-scanner") {
     barcodeScannerOpen = false;
@@ -1985,6 +2034,7 @@ function resetTransientUiState() {
   onboardingDraft = null;
   libraryEditor = null;
   deleteConfirm = null;
+  discardChangesConfirm = false;
   entryDraft = { meal: "breakfast", items: {} };
   mealCartOpen = false;
   addPanelMode = "existing";
@@ -2264,7 +2314,12 @@ function toggleProduct(id) {
   if (hasDraftItem(id)) delete entryDraft.items[id];
   else entryDraft.items[id] = defaultProductAmount(product);
   mealCartOpen = Object.keys(entryDraft.items).length > 0;
-  const keepSearchActive = activeScreen === "add";
+  // Only keep the keyboard/search focused if the person was actually typing
+  // in the search field when they tapped the card (rapid multi-select while
+  // searching). Tapping a card while search wasn't focused must not open it.
+  const keepSearchActive = activeScreen === "add"
+    && document.activeElement instanceof HTMLElement
+    && document.activeElement.matches("[data-add-food-query]");
   render();
   if (keepSearchActive) {
     const search = app.querySelector("[data-add-food-query]");
@@ -2351,6 +2406,7 @@ function addEntry(form) {
 
 function deleteEntry(id) {
   state.diary[selectedDate] = entriesForDate().filter((item) => item.id !== id);
+  deleteConfirm = null;
   persist();
   render();
 }
@@ -2494,11 +2550,34 @@ function syncDishDraftFromForm(form) {
   if (libraryEditor?.kind !== "dish") return;
   const draft = libraryEditor.draft;
   draft.name = String(form.querySelector('[name="name"]')?.value || "");
-  draft.ingredients = [...form.querySelectorAll("[data-dish-ingredient]")].map((row) => ({
-    id: row.dataset.dishIngredient,
-    productId: row.querySelector('[name="ingredientProduct"]')?.value || "",
-    amount: optionalNumber(row.querySelector('[name="ingredientAmount"]')?.value)
-  }));
+  const previousIngredients = draft.ingredients || [];
+  draft.ingredients = [...form.querySelectorAll("[data-dish-ingredient]")].map((row) => {
+    const id = row.dataset.dishIngredient;
+    const productId = row.querySelector('[name="ingredientProduct"]')?.value || "";
+    const previous = previousIngredients.find((ingredient) => ingredient.id === id);
+    // Keep the frozen snapshot only while the row still points at the same
+    // (deleted) product — if the user picks a different, existing product
+    // instead, this ingredient becomes a normal live reference again.
+    const productSnapshot = previous && previous.productId === productId ? previous.productSnapshot : undefined;
+    return {
+      id,
+      productId,
+      amount: optionalNumber(row.querySelector('[name="ingredientAmount"]')?.value),
+      ...(productSnapshot ? { productSnapshot } : {})
+    };
+  });
+}
+
+function dishEditHasUnsavedChanges() {
+  if (libraryEditor?.kind !== "dish") return false;
+  const original = state.dishes.find((item) => item.id === libraryEditor.id);
+  if (!original) return false;
+  const draft = libraryEditor.draft || {};
+  if (String(draft.name || "").trim() !== String(original.name || "").trim()) return true;
+  const normalize = (list) => (list || [])
+    .map((ingredient) => `${ingredient.productId || ""}:${number(ingredient.amount)}`)
+    .join("|");
+  return normalize(draft.ingredients) !== normalize(original.ingredients);
 }
 
 function saveDishEdit(form) {
@@ -2578,11 +2657,24 @@ function addPickedIngredientsToDish(form) {
 }
 
 function deleteProduct(id) {
+  // Deleting a product must not change any dish that already uses it as an
+  // ingredient (its composition and its КБЖУ must stay exactly as they were).
+  // So instead of removing the ingredient from existing dishes, freeze its
+  // last-known nutrition into the ingredient itself — the same
+  // productSnapshot pattern already used for diary entries of deleted
+  // products (see diaryProductSnapshot / addDiaryEntry).
+  const product = productById(id);
+  if (product) {
+    const snapshot = diaryProductSnapshot(product);
+    state.dishes.forEach((dish) => {
+      (dish.ingredients || []).forEach((ingredient) => {
+        if (ingredient.productId === id && !ingredient.productSnapshot) {
+          ingredient.productSnapshot = snapshot;
+        }
+      });
+    });
+  }
   state.products = state.products.filter((item) => item.id !== id);
-  state.dishes = state.dishes.map((dish) => ({
-    ...dish,
-    ingredients: (dish.ingredients || []).filter((ingredient) => ingredient.productId !== id)
-  }));
   ensureEntryDraft();
   delete entryDraft.items[id];
   deleteConfirm = null;
@@ -2606,6 +2698,7 @@ function confirmDelete() {
   if (deleteConfirm.kind === "weight") deleteWeight(deleteConfirm.id);
   if (deleteConfirm.kind === "eighty") deleteEightyFood(deleteConfirm.id);
   if (deleteConfirm.kind === "template") deleteMealTemplate(deleteConfirm.id);
+  if (deleteConfirm.kind === "entry") deleteEntry(deleteConfirm.id);
 }
 
 function addWater(ml) {
@@ -3036,6 +3129,7 @@ function render() {
     ${libraryEditor?.kind === "product" ? productEditModal() : ""}
     ${libraryEditor?.kind === "dish" ? dishEditModal() : ""}
     ${libraryEditor?.kind === "eighty" ? eightyEditModal() : ""}
+    ${discardChangesConfirm ? discardChangesConfirmModal() : ""}
     ${achievementsOpen ? achievementsModal(false) : ""}
     ${earnedAchievementsOpen ? achievementsModal(true) : ""}
     ${periodSheetOpen ? analyticsPeriodSheet() : ""}
@@ -3371,7 +3465,7 @@ function entryRow(item) {
         <span>У ${round(item.nutrients.carbs)}</span>
       </div>
     </button>
-    <button class="icon-btn compact delete-btn" data-delete-entry="${item.id}" title="Удалить">${icons.trash}</button>
+    <button class="icon-btn compact delete-btn" data-confirm-delete-entry="${item.id}" title="Удалить">${icons.trash}</button>
   </div>`;
 }
 
@@ -4201,21 +4295,26 @@ function rationAmountCard({ product, amount }) {
   const isPiece = product.type === "piece";
   const currentAmount = normalizeProductAmount(product, amount);
   const minusDisabled = isPiece && Number(currentAmount) <= 1;
+  // Single-row layout: name/subtitle on the left, the compact +/- control in
+  // the middle, a thin divider, then calories on the right — matches the
+  // reference design. Same element/attributes as before (data-amount-step,
+  // data-cart-amount, ids) so all existing click/change handlers keep working.
   return `<article class="product-choice selected amount-card">
-    <div class="product-choice-main static-choice">
-      <span>
+    <div class="amount-card-row">
+      <div class="amount-card-info">
         <strong>${escapeHtml(product.name)}</strong>
         <em>${label}</em>
-      </span>
-      <b>${round(product.calories)} ккал</b>
-    </div>
-    <div class="product-choice-amount amount-stepper ${isPiece ? "piece-stepper" : "manual-amount"}">
-      ${isPiece ? `<button class="amount-step-btn" type="button" data-amount-step="${product.id}" data-step="-1" aria-label="Уменьшить количество" ${minusDisabled ? "disabled" : ""}>−</button>` : ""}
-      <label class="amount-value" for="amount-${product.id}">
-        <input id="amount-${product.id}" data-cart-amount="${product.id}" type="number" min="1" step="${product.type === "piece" ? "1" : "0.1"}" inputmode="${product.type === "piece" ? "numeric" : "decimal"}" enterkeyhint="next" aria-label="${label}" placeholder="${productAmountPlaceholder(product)}" value="${escapeHtml(amount)}">
-        <span>${unit}</span>
-      </label>
-      ${isPiece ? `<button class="amount-step-btn" type="button" data-amount-step="${product.id}" data-step="1" aria-label="Увеличить количество">+</button>` : ""}
+      </div>
+      <div class="amount-stepper ${isPiece ? "piece-stepper" : "manual-amount"}">
+        ${isPiece ? `<button class="amount-step-btn" type="button" data-amount-step="${product.id}" data-step="-1" aria-label="Уменьшить количество" ${minusDisabled ? "disabled" : ""}>−</button>` : ""}
+        <label class="amount-value" for="amount-${product.id}">
+          <input id="amount-${product.id}" data-cart-amount="${product.id}" type="number" min="1" step="${product.type === "piece" ? "1" : "0.1"}" inputmode="${product.type === "piece" ? "numeric" : "decimal"}" enterkeyhint="next" aria-label="${label}" placeholder="${productAmountPlaceholder(product)}" value="${escapeHtml(amount)}">
+          <span>${unit}</span>
+        </label>
+        ${isPiece ? `<button class="amount-step-btn" type="button" data-amount-step="${product.id}" data-step="1" aria-label="Увеличить количество">+</button>` : ""}
+      </div>
+      <span class="amount-card-divider" aria-hidden="true"></span>
+      <b class="amount-card-calories">${round(product.calories)} ккал</b>
     </div>
   </article>`;
 }
@@ -4315,9 +4414,15 @@ function eightyCategoriesPage() {
 
 function visibleEightyProducts(categoryId) {
   const query = (eightyImport.query || "").trim().toLowerCase();
-  return userEightyFoods()
-    .filter((product) => product.categoryId === categoryId)
-    .filter((product) => !query || product.name.toLowerCase().includes(query));
+  // Same rule as dishIngredientLibraryItems(): while searching, look across
+  // the whole Eighty base, not just the currently open category — a query
+  // typed here shouldn't behave differently from the same search in the
+  // dish ingredient picker. Browsing without a query still stays scoped to
+  // the open category.
+  if (query) {
+    return userEightyFoods().filter((product) => product.name.toLowerCase().includes(query));
+  }
+  return userEightyFoods().filter((product) => product.categoryId === categoryId);
 }
 
 function selectedEightyFoods() {
@@ -4354,6 +4459,7 @@ function eightyImportChoiceCard(product) {
       <b>${round(product.calories)} ккал</b>
       ${selected ? `<i class="choice-check">✓</i>` : ""}
     </button>
+    ${macroBadges(product)}
   </article>`;
 }
 
@@ -4627,9 +4733,10 @@ function productTypeSegments(type) {
   </div>`;
 }
 
-function productNutritionFields(draft = {}) {
+function productNutritionFields(draft = {}, type = "weight") {
+  const basis = type === "volume" ? "на 100 мл" : type === "piece" ? "на 1 шт." : "на 100 г";
   return `<div class="field full create-product-section">
-    <label>Пищевая ценность</label>
+    <label>Пищевая ценность ${basis}</label>
     <div class="product-nutrition-grid">
       <div class="field"><label>Ккал</label><input name="calories" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="0" value="${escapeHtml(draft.calories || "")}"><span>ккал</span></div>
       <div class="field"><label>Белки</label><input name="protein" type="number" step="0.1" inputmode="decimal" enterkeyhint="next" placeholder="0" value="${escapeHtml(draft.protein || "")}"><span>г</span></div>
@@ -4701,7 +4808,7 @@ function createProductPage() {
         <form class="form-grid create-product-form" data-form="product">
           <div class="field full create-product-section"><label>Название продукта</label><input name="name" value="${escapeHtml(draft.name || "")}" placeholder="Спагетти" enterkeyhint="next" required></div>
           ${productTypeSegments(type)}
-          ${productNutritionFields(draft)}
+          ${productNutritionFields(draft, type)}
           ${productCookingSection(draft, type)}
           ${productSaveModeFields(draft)}
           <div class="field full"><button class="primary-btn full-btn" type="submit">${(draft.saveMode || "library") === "diary" ? "Добавить в дневник" : "Сохранить продукт"}</button></div>
@@ -4846,6 +4953,7 @@ function ingredientPickerCard(item) {
       <b>${round(item.calories)} ккал</b>
       ${selected ? `<i class="choice-check">✓</i>` : ""}
     </button>
+    ${macroBadges(item)}
   </article>`;
 }
 
@@ -5211,7 +5319,20 @@ function dishEditModal() {
 }
 
 function dishIngredientRow(ingredient) {
-  const options = addMealItems().map((item) => option(item.id, item.name, ingredient.productId)).join("");
+  const items = addMealItems();
+  const isMissing = !items.some((item) => item.id === ingredient.productId);
+  // The source product was deleted from the library (see deleteProduct):
+  // show a locked placeholder option instead of letting the <select>
+  // silently fall back to whatever item happens to be first — that would
+  // corrupt this ingredient's productId as soon as the form is saved.
+  const missingLabel = ingredient.productSnapshot?.name
+    ? `${ingredient.productSnapshot.name} (продукт удалён)`
+    : "Продукт удалён";
+  const options = isMissing
+    ? [`<option value="${ingredient.productId}" selected disabled>${escapeHtml(missingLabel)}</option>`]
+      .concat(items.map((item) => option(item.id, item.name, "")))
+      .join("")
+    : items.map((item) => option(item.id, item.name, ingredient.productId)).join("");
   return `<div class="dish-ingredient-row" data-dish-ingredient="${ingredient.id}">
     <select name="ingredientProduct">${options}</select>
     <input name="ingredientAmount" type="number" min="1" step="0.1" inputmode="decimal" value="${ingredient.amount || ""}" placeholder="г">
@@ -5226,18 +5347,45 @@ function deleteConfirmModal() {
   const isEighty = deleteConfirm.kind === "eighty";
   const isTemplate = deleteConfirm.kind === "template";
   const isProduct = deleteConfirm.kind === "product";
+  const isEntry = deleteConfirm.kind === "entry";
+  const label = isTemplate ? "⭐ Шаблон" : isWeight ? "⚖ Вес" : isDish ? "Блюдо" : isEighty ? "📚 База Eighty" : isEntry ? "Запись дневника" : "Продукт";
+  const baseTitle = isTemplate ? "Удалить шаблон?" : isWeight ? "Удалить запись веса?" : isDish ? "Удалить блюдо?" : isEighty ? "Удалить продукт из вашей базы?" : isEntry ? "Удалить запись?" : "Удалить продукт?";
+  const name = String(deleteConfirm.name || "").trim();
+  const title = name ? `Удалить «${escapeHtml(name)}»?` : baseTitle;
   return `<div class="modal-backdrop" data-modal-close="delete-confirm">
     <div class="modal-card confirm-modal" role="dialog" aria-modal="true" aria-label="Подтверждение удаления">
       <div class="modal-head">
         <div>
-          ${isProduct ? "" : `<span>${isTemplate ? "⭐ Шаблон" : isWeight ? "⚖ Вес" : isDish ? "Блюдо" : isEighty ? "📚 База Eighty" : "Продукт"}</span>`}
-          <h3>${isTemplate ? "Удалить шаблон?" : isWeight ? "Удалить запись веса?" : isDish ? "Удалить блюдо?" : isEighty ? "Удалить продукт из вашей базы?" : "Удалить продукт?"}</h3>
+          ${isProduct && !name ? "" : `<span>${label}</span>`}
+          <h3>${title}</h3>
         </div>
         <button class="icon-btn compact neutral" type="button" data-action="cancel-delete" aria-label="Закрыть">×</button>
       </div>
       <div class="modal-actions">
-        <button class="secondary-btn" type="button" data-action="cancel-delete">Отмена</button>
+        <button class="secondary-btn" type="button" data-action="cancel-delete" autofocus>Отмена</button>
         <button class="danger-btn" type="button" data-action="confirm-delete">Удалить</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function discardChangesConfirmModal() {
+  if (!discardChangesConfirm) return "";
+  // Same compact confirm-modal style/size as deleteConfirmModal — this is
+  // only for the one case that needed it (tapping the backdrop of the dish
+  // edit modal while there are unsaved changes), not a new modal design.
+  return `<div class="modal-backdrop" data-modal-close="discard-changes">
+    <div class="modal-card confirm-modal" role="dialog" aria-modal="true" aria-label="Несохранённые изменения">
+      <div class="modal-head">
+        <div>
+          <span>Блюдо</span>
+          <h3>Не сохранять изменения?</h3>
+        </div>
+        <button class="icon-btn compact neutral" type="button" data-action="keep-editing-dish" aria-label="Закрыть">×</button>
+      </div>
+      <div class="modal-actions">
+        <button class="secondary-btn" type="button" data-action="keep-editing-dish" autofocus>Остаться</button>
+        <button class="danger-btn" type="button" data-action="discard-dish-edit">Не сохранять</button>
       </div>
     </div>
   </div>`;
@@ -6083,6 +6231,19 @@ app.addEventListener("click", async (event) => {
       await closeBarcodeScanner(false);
       return;
     }
+    if (event.target.dataset.modalClose === "library-editor" && libraryEditor?.kind === "dish") {
+      // A stray tap on the backdrop shouldn't silently throw away edits —
+      // sync whatever is currently in the form first (a still-focused input
+      // may not have fired its own change/blur sync yet), then only ask for
+      // confirmation if that actually differs from the saved dish.
+      const form = event.target.querySelector('form[data-form="dish-edit"]');
+      if (form) syncDishDraftFromForm(form);
+      if (dishEditHasUnsavedChanges()) {
+        discardChangesConfirm = true;
+        render();
+        return;
+      }
+    }
     closeModal(event.target.dataset.modalClose);
     render();
     return;
@@ -6148,6 +6309,7 @@ app.addEventListener("click", async (event) => {
   }
   if (button.dataset.action === "onboarding-start") {
     onboardingStep = 2;
+    persistOnboardingProgress();
     render();
     focusOnboardingField();
     return;
@@ -6422,7 +6584,11 @@ app.addEventListener("click", async (event) => {
   if (button.dataset.openAdd) openAdd(button.dataset.openAdd);
   if (button.dataset.water) addWater(number(button.dataset.water));
   if (button.dataset.editEntry) openEntryEditor(button.dataset.editEntry);
-  if (button.dataset.deleteEntry) deleteEntry(button.dataset.deleteEntry);
+  if (button.dataset.confirmDeleteEntry) {
+    const entry = entriesForDate().find((item) => item.id === button.dataset.confirmDeleteEntry);
+    deleteConfirm = { kind: "entry", id: button.dataset.confirmDeleteEntry, name: entry?.label || "" };
+    render();
+  }
   if (button.dataset.deleteProduct) deleteProduct(button.dataset.deleteProduct);
   if (button.dataset.deleteWeight) deleteWeight(button.dataset.deleteWeight);
   if (button.dataset.toggleProductFavorite) {
@@ -6430,11 +6596,13 @@ app.addEventListener("click", async (event) => {
     return;
   }
   if (button.dataset.confirmDeleteProduct) {
-    deleteConfirm = { kind: "product", id: button.dataset.confirmDeleteProduct };
+    const product = productById(button.dataset.confirmDeleteProduct);
+    deleteConfirm = { kind: "product", id: button.dataset.confirmDeleteProduct, name: product?.name || "" };
     render();
   }
   if (button.dataset.confirmDeleteDish) {
-    deleteConfirm = { kind: "dish", id: button.dataset.confirmDeleteDish };
+    const dish = state.dishes.find((item) => item.id === button.dataset.confirmDeleteDish);
+    deleteConfirm = { kind: "dish", id: button.dataset.confirmDeleteDish, name: dish?.name || "" };
     render();
   }
   if (button.dataset.editProduct) openProductEditor(button.dataset.editProduct);
@@ -6442,7 +6610,8 @@ app.addEventListener("click", async (event) => {
   if (button.dataset.editEightyProduct) openEightyEditor(button.dataset.editEightyProduct);
   if (button.dataset.deleteWater) deleteWaterEntry(button.dataset.deleteWater);
   if (button.dataset.confirmDeleteEighty) {
-    deleteConfirm = { kind: "eighty", id: button.dataset.confirmDeleteEighty };
+    const food = eightyFoodById(button.dataset.confirmDeleteEighty, true);
+    deleteConfirm = { kind: "eighty", id: button.dataset.confirmDeleteEighty, name: food?.name || "" };
     render();
   }
   if (button.dataset.confirmDeleteTemplate) {
@@ -6580,6 +6749,15 @@ app.addEventListener("click", async (event) => {
   }
   if (button.dataset.action === "confirm-delete") {
     confirmDelete();
+  }
+  if (button.dataset.action === "keep-editing-dish") {
+    discardChangesConfirm = false;
+    render();
+  }
+  if (button.dataset.action === "discard-dish-edit") {
+    discardChangesConfirm = false;
+    closeModal("library-editor");
+    render();
   }
   if (button.dataset.action === "add-dish-ingredient") {
     const form = button.closest('form[data-form="dish-edit"]');
