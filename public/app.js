@@ -1,7 +1,26 @@
 const tg = window.Telegram?.WebApp;
 tg?.ready();
-tg?.expand();
-tg?.disableVerticalSwipes?.();
+// True edge-to-edge fullscreen (Bot API 8.0+, Telegram 7.10+) instead of the
+// "sheet" look with the native close button / ⋮ menu on top. Older clients
+// without requestFullscreen fall back to the previous expand() behavior.
+// Wrapped defensively: outside the real Telegram app (own host, plain
+// browser) these calls can throw, and an uncaught error here would stop the
+// rest of this module — including bootstrap() — from ever running.
+try {
+  if (typeof tg?.requestFullscreen === "function") {
+    try {
+      tg.onEvent?.("fullscreenFailed", () => {
+        try { tg?.expand(); } catch {}
+      });
+    } catch {}
+    tg.requestFullscreen();
+  } else {
+    tg?.expand();
+  }
+} catch {
+  try { tg?.expand(); } catch {}
+}
+try { tg?.disableVerticalSwipes?.(); } catch {}
 
 const app = document.querySelector("#app");
 const stateKey = "eighty-state-v4";
@@ -5162,8 +5181,14 @@ function toggleProductFavorite(id) {
   if (!product) return;
   product.favorite = !Boolean(product.favorite);
   persist();
-  const keepAddSearchActive = activeScreen === "add" && (addPage === "ration" || addPage === "home");
-  const keepFavoritesSearchActive = activeScreen === "favorites" && favoritesPage === "home";
+  // Only keep the keyboard/search focused if the person was actually typing
+  // in that screen's search field when they tapped the star (rapid
+  // favoriting while searching). Tapping the star otherwise must not open
+  // the keyboard — see toggleProduct() for the same fix on "Добавить".
+  const searchWasFocused = document.activeElement instanceof HTMLElement
+    && (document.activeElement.matches("[data-add-food-query]") || document.activeElement.matches("[data-favorites-query]"));
+  const keepAddSearchActive = searchWasFocused && activeScreen === "add" && (addPage === "ration" || addPage === "home");
+  const keepFavoritesSearchActive = searchWasFocused && activeScreen === "favorites" && favoritesPage === "home";
   render();
   if (keepAddSearchActive) {
     const search = app.querySelector("[data-add-food-query]");

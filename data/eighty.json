@@ -104,7 +104,7 @@
             "carbs": 4,
             "cookedDryWeight": 100,
             "cookedReadyWeight": 230,
-            "favorite": false
+            "favorite": true
           },
           {
             "id": "iolohvivmqvbqc9x",
@@ -128,7 +128,7 @@
             "carbs": 0.5,
             "cookedDryWeight": 100,
             "cookedReadyWeight": 230,
-            "favorite": false
+            "favorite": true
           }
         ],
         "diary": {
@@ -776,7 +776,7 @@
         "onboardingStep": 1,
         "onboardingDraft": null
       },
-      "updatedAt": "2026-09-13T21:47:23.934Z"
+      "updatedAt": "2026-09-13T21:59:43.613Z"
     },
     "codex-onboarding-test": {
       "telegramId": "codex-onboarding-test",

@@ -467,7 +467,11 @@ button:disabled {
   max-width: 100%;
   overflow-x: clip;
   margin: 0 auto;
-  padding: var(--spacing-lg) var(--spacing-lg) calc(var(--nav-height) + 34px);
+  /* max(...) keeps today's spacing untouched in the normal Telegram "sheet"
+     view; it only grows once requestFullscreen() makes the page span the
+     real screen edges and the browser starts reporting a safe-area inset
+     (status bar / notch). */
+  padding: max(var(--spacing-lg), calc(env(safe-area-inset-top) + 10px)) var(--spacing-lg) calc(var(--nav-height) + 34px + env(safe-area-inset-bottom));
 }
 
 .layout.screen-transitioning {
@@ -4936,7 +4940,7 @@ button:disabled {
 .tabs {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--nav-bottom) - var(--keyboard-offset));
+  bottom: calc(var(--nav-bottom) - var(--keyboard-offset) + env(safe-area-inset-bottom));
   z-index: 20;
   width: calc(100vw - 16px);
   max-width: 680px;
