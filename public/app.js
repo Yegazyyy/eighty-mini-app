@@ -22,6 +22,27 @@ try {
 }
 try { tg?.disableVerticalSwipes?.(); } catch {}
 
+// In fullscreen mode Telegram draws its own floating "Close"/"⋯" controls
+// as an overlay on top of the page — env(safe-area-inset-top) only covers
+// the device notch/status bar, not that extra Telegram chrome, so our own
+// header can end up hidden behind it. tg.safeAreaInset (device) +
+// tg.contentSafeAreaInset (Telegram's own overlay controls) together give
+// the real clearance needed; expose them as CSS vars the stylesheet reads.
+function syncTelegramSafeArea() {
+  try {
+    const top = (tg?.safeAreaInset?.top || 0) + (tg?.contentSafeAreaInset?.top || 0);
+    const bottom = (tg?.safeAreaInset?.bottom || 0) + (tg?.contentSafeAreaInset?.bottom || 0);
+    document.documentElement.style.setProperty("--tg-safe-top", `${top}px`);
+    document.documentElement.style.setProperty("--tg-safe-bottom", `${bottom}px`);
+  } catch {}
+}
+syncTelegramSafeArea();
+try {
+  tg?.onEvent?.("fullscreenChanged", syncTelegramSafeArea);
+  tg?.onEvent?.("safeAreaChanged", syncTelegramSafeArea);
+  tg?.onEvent?.("contentSafeAreaChanged", syncTelegramSafeArea);
+} catch {}
+
 const app = document.querySelector("#app");
 const stateKey = "eighty-state-v4";
 const legacyStateKeys = ["eighty-state-v3", "eighty-state-v2"];

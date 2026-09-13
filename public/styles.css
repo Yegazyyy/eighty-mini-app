@@ -50,6 +50,11 @@
   --action-button-visual-size: 66px;
   --keyboard-offset: 0px;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  /* Set from JS (tg.safeAreaInset + tg.contentSafeAreaInset) once Telegram
+     reports it — covers Telegram's own overlay Close/⋯ controls in
+     fullscreen mode, which env(safe-area-inset-*) alone doesn't know about. */
+  --tg-safe-top: 0px;
+  --tg-safe-bottom: 0px;
 }
 
 :root[data-theme="dark"] {
@@ -469,9 +474,10 @@ button:disabled {
   margin: 0 auto;
   /* max(...) keeps today's spacing untouched in the normal Telegram "sheet"
      view; it only grows once requestFullscreen() makes the page span the
-     real screen edges and the browser starts reporting a safe-area inset
-     (status bar / notch). */
-  padding: max(var(--spacing-lg), calc(env(safe-area-inset-top) + 10px)) var(--spacing-lg) calc(var(--nav-height) + 34px + env(safe-area-inset-bottom));
+     real screen edges — from the device's own safe-area inset (status bar /
+     notch) and/or Telegram's reported safe area (which also covers its own
+     floating Close/⋯ overlay controls in fullscreen), whichever is larger. */
+  padding: max(var(--spacing-lg), calc(env(safe-area-inset-top) + 10px), calc(var(--tg-safe-top) + 10px)) var(--spacing-lg) calc(var(--nav-height) + 34px + max(env(safe-area-inset-bottom), var(--tg-safe-bottom)));
 }
 
 .layout.screen-transitioning {
@@ -4940,7 +4946,7 @@ button:disabled {
 .tabs {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--nav-bottom) - var(--keyboard-offset) + env(safe-area-inset-bottom));
+  bottom: calc(var(--nav-bottom) - var(--keyboard-offset) + max(env(safe-area-inset-bottom), var(--tg-safe-bottom)));
   z-index: 20;
   width: calc(100vw - 16px);
   max-width: 680px;
